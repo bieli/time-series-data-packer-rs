@@ -10,7 +10,7 @@ This is an experimental project with saving storage size for time series data co
 - structs:
   - `TSPackStrategyType`
     - `TSPackSimilarValuesStrategy` - similar values based simple methodology (repeatition of the same values will be packed - default strategy)
-    - `TSPackMeanStrategy(values_compression_percent: u8)` - mean value based simple methodoloty (for first iteration). `values_compression_percent` parameter value explanations: if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`
+    - `TSPackMeanStrategy(values_compression_percent: u8)` - mean value based simple methodoloty (for first iteration). `values_compression_percent` parameter value explanations: if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`. Means, we have avg. from series and we try to find, if values are in -5 to 5 range based on avg. value as a reference on values data window.
   - `TSPackAttributes`
     - `strategy_types: Vec<TSPackStrategyType>` - what method of compression we would like to use
   - `TSSamples`
