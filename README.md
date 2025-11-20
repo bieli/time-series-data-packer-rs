@@ -1,5 +1,5 @@
 # time-series-data-packer-rs
-Time series data packer written in Rust language
+Time series data packer written in Rust language for data intensive IoT and IIoT projects.
 
 ## Motivations
 In a lot of my IoT projects, I have a pressure on storage size after time series data collection with miliseconds precission.
