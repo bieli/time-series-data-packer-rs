@@ -8,20 +8,20 @@ This is an experimental project with saving storage size for time series data co
 
 ## API definitions
 - structs:
-  - `TSPackType`
-    - `TSPackMeanStrategy` - mean value based simple methodoloty (for first iteration)
+  - `TSPackStrategyType`
+    - `TSPackSimilarValuesStrategy` - similar values based simple methodology (repeatition of the same values will be packed - default strategy)
+    - `TSPackMeanStrategy(values_compression_percent: u8)` - mean value based simple methodoloty (for first iteration). `values_compression_percent` parameter value explanations: if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`
   - `TSPackAttributes`
-    - `type: TSPackType` - what method of compression we would like to use
-    - `values_compression_percent: u8` - if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`
+    - `strategy_types: Vec<TSPackStrategyType>` - what method of compression we would like to use
   - `TSSamples`
     - f64 - timestamp in seconds
     - f64 - real value
   - `TSPackedSamples`
     - (f64, f64) - timestamps ranges in seconds
-    - f64 - i.e using mean values strategy (based on `values_compression_percent` parameter setting for `pack` function)
+    - f64 - i.e using mean values strategy (based on `values_compression_percent` parameter setting for `pack` function - in case of used `TSPackMeanStrategy`)
   
 - `TimeSeriesDataPacker` - object with methods:
-  - `fn pack(samples: Vec<TSSamples>, attr: TSPackAttributes) -> Vec<TSPackedSamples>` - packer functon
+  - `fn pack(samples: Vec<TSSamples>, attributes: TSPackAttributes) -> Vec<TSPackedSamples>` - packer functon
   - `fn unpack( -> Vec<TSPackedSamples>) -> (TSPackAttributes, Vec<TSSamples>)` - unpacker functon
 
 
