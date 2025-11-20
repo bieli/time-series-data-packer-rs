@@ -20,3 +20,15 @@ This is an experimental project with saving storage size for time series data co
 - `TimeSeriesDataPacker` - object with methods:
   - `fn pack(samples: Vec<TSSamples>, attr: TSPackAttributes) -> Vec<TSPackedSamples>` - packer functon
   - `fn unpack( -> Vec<TSPackedSamples>) -> Vec<TSSamples>` - unpacker functon
+
+
+## TODO list
+- [ ] CI
+- [ ] crates package distribution
+- [ ] prepare great real tests examples from various group of IoT sensors
+- [ ] compare random sequences compressions rates with real data from IoT sensors
+- [ ] add Python interface based on PyO3 library
+- [ ] public Python package in TEST and official python packages for inc. popularity
+- [ ] measure resources (RAM, CPU, IO) required to pack and unpack data with diffirent time ranges
+- [ ] think about packed data buckets concept by time domain: minutes, hours, daily, weekly, monthly (kind of specific packed measurements partitions, becouse in time-series data analytics in IoT there are a very specific situations, when you need to select all historical data, usually you points of interests are selected by known short time ranges)
+- [ ] think about lossless data packing algo.
