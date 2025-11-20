@@ -8,18 +8,21 @@ This is an experimental project with saving storage size for time series data co
 
 ## API definitions
 - structs:
+  - `TSPackType`
+    - `TSPackMeanStrategy` - mean value based simple methodoloty (for first iteration)
   - `TSPackAttributes`
-    - values_compression_percent - if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`
+    - `type: TSPackType` - what method of compression we would like to use
+    - `values_compression_percent: u8` - if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`
   - `TSSamples`
     - f64 - timestamp in seconds
     - f64 - real value
   - `TSPackedSamples`
     - (f64, f64) - timestamps ranges in seconds
-    - f64 - mean value (based on `values_compression_percent` parameter setting for `pack` function)
+    - f64 - i.e using mean values strategy (based on `values_compression_percent` parameter setting for `pack` function)
   
 - `TimeSeriesDataPacker` - object with methods:
   - `fn pack(samples: Vec<TSSamples>, attr: TSPackAttributes) -> Vec<TSPackedSamples>` - packer functon
-  - `fn unpack( -> Vec<TSPackedSamples>) -> Vec<TSSamples>` - unpacker functon
+  - `fn unpack( -> Vec<TSPackedSamples>) -> (TSPackAttributes, Vec<TSSamples>)` - unpacker functon
 
 
 ## TODO list
