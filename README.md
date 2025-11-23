@@ -26,6 +26,49 @@ This is an experimental project with saving storage size for time series data co
   - `fn unpack( -> Vec<TSPackedSamples>) -> (TSPackAttributes, Vec<TSSamples>)` - unpacker functon
 
 
+### API usage example
+```rust
+use time_series_data_packer_rs::*;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let samples: Vec<TSSamples> = vec![
+        (0.0, 100.0),
+        (0.001, 100.0),
+        (0.002, 102.0),
+        (0.003, 98.0),
+        (0.004, 100.0),
+        (0.005, 99.0),
+    ];
+
+    let attrs = TSPackAttributes {
+        strategy_types: vec![
+            TSPackStrategyType::TSPackMeanStrategy { values_compression_percent: 5 },
+        ],
+        microseconds_time_window: 1_000, // 1 ms
+    };
+
+    let mut packer = TimeSeriesDataPacker::new();
+    let packed = packer.pack(samples.clone(), attrs)?;
+    println!("Packed: {:?}", packed);
+
+    let (_attrs, original) = packer.unpack();
+    println!("Original recovered: {:?}", original);
+    
+    println!("Samples == Original recovered: {:?}", samples == original);
+
+    Ok(())
+}
+```
+#### Results from API usage example after run
+```bash
+$ cargo run
+
+Packed: [((0.0, 0.003), 100.0), ((0.004, 0.005), 99.5)]
+Original recovered: [(0.0, 100.0), (0.001, 100.0), (0.002, 102.0), (0.003, 98.0), (0.004, 100.0), (0.005, 99.0)]
+Samples == Original recovered: true
+```
+
+
 ## TODO list
 - [ ] CI
 - [ ] crates package distribution
