@@ -31,3 +31,47 @@ pub struct TimeSeriesDataPacker {
     packed_samples: Vec<TSPackedSamples>,
 }
 
+impl Default for TimeSeriesDataPacker {
+    fn default() -> Self {
+        Self {
+            attributes: None,
+            original_samples: Vec::new(),
+            packed_samples: Vec::new(),
+        }
+    }
+}
+
+impl TimeSeriesDataPacker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_similar_values_strategy() {
+        let samples = vec![
+            (0.0, 100.0),
+            (0.1, 100.0),
+            (0.2, 100.0),
+            (0.3, 101.0),
+            (0.4, 101.0),
+            (0.5, 100.0),
+        ];
+
+        let mut packer = TimeSeriesDataPacker::new();
+        let attrs = TSPackAttributes {
+            strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
+            microseconds_time_window: 1_000_000, // 1 second windows
+        };
+
+        let packed = packer.pack(samples.clone(), attrs).unwrap();
+        assert_eq!(packed.len(), 3);
+        assert_eq!(packed[0], ((0.0, 0.2), 100.0));
+        assert_eq!(packed[1], ((0.3, 0.4), 101.0));
+        assert_eq!(packed[2], ((0.5, 0.5), 100.0));
+    }
+}
