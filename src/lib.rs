@@ -1,6 +1,10 @@
-use thiserror::Error;
+mod helpers;
 
-// A single sample: (timestamp_seconds, value)
+use std::cmp::Ordering;
+use thiserror::Error;
+use crate::helpers::split_into_windows;
+
+// A single raw sample: (timestamp_seconds, value)
 pub type TSSamples = (f64, f64);
 
 // A single packed sample: ((start_seconds, end_seconds), value)
@@ -53,6 +57,19 @@ impl TimeSeriesDataPacker {
     ) -> Result<Vec<TSPackedSamples>, TSPackError> {
         if attributes.microseconds_time_window == 0 {
             return Err(TSPackError::InvalidWindow);
+        }
+
+        samples.sort_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(Ordering::Equal)
+        });
+
+        let windows = split_into_windows(&samples, attributes.microseconds_time_window);
+
+        let mut packed_all: Vec<TSPackedSamples> = Vec::new();
+
+        for window_samples in windows {
+
         }
 
         todo!();
