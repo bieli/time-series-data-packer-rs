@@ -1,8 +1,16 @@
-mod helpers;
+pub mod helpers;
+pub mod strategies;
+
 
 use std::cmp::Ordering;
 use thiserror::Error;
+
+
+use crate::helpers::Representation;
+use crate::helpers::apply_strategy;
+use crate::helpers::finalize_to_packed;
 use crate::helpers::split_into_windows;
+
 
 // A single raw sample: (timestamp_seconds, value)
 pub type TSSamples = (f64, f64);
@@ -69,12 +77,19 @@ impl TimeSeriesDataPacker {
         let mut packed_all: Vec<TSPackedSamples> = Vec::new();
 
         for window_samples in windows {
+            let mut current_representation = Representation::Raw(window_samples);
 
+            for strategy in &attributes.strategy_types {
+                current_representation = apply_strategy(current_representation, strategy);
+            }
+
+            let packed = finalize_to_packed(current_representation);
+            packed_all.extend(packed);
         }
 
         todo!();
 
-        Ok(vec!())
+        Ok(packed_all)
     }
 
 }

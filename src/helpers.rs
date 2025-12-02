@@ -1,4 +1,16 @@
 use crate::TSSamples;
+use crate::TSPackedSamples;
+use crate::TSPackStrategyType;
+
+use crate::strategies::similar_values::similar_values_pack;
+
+#[derive(Debug, Clone)]
+pub enum Representation {
+    // Raw samples: (ts, value)
+    Raw(Vec<TSSamples>),
+    // Packed ranges: ((start_ts, end_ts), value)
+    Packed(Vec<TSPackedSamples>),
+}
 
 pub fn split_into_windows(samples: &[TSSamples], micro_window: u64) -> Vec<Vec<TSSamples>> {
     if samples.is_empty() {
@@ -29,6 +41,35 @@ pub fn split_into_windows(samples: &[TSSamples], micro_window: u64) -> Vec<Vec<T
     }
 
     windows
+}
+
+pub fn apply_strategy(
+    representation: Representation,
+    strategy: &TSPackStrategyType,
+) -> Representation {
+    match strategy {
+        TSPackStrategyType::TSPackSimilarValuesStrategy => {
+            match representation {
+                Representation::Raw(samples) => {
+                    Representation::Packed(similar_values_pack(&samples))
+                }
+                Representation::Packed(packs) => todo!()
+            }
+        },
+        &TSPackStrategyType::TSPackMeanStrategy { .. } => todo!()
+    }
+}
+
+pub fn finalize_to_packed(representation: Representation) -> Vec<TSPackedSamples> {
+    match representation {
+        Representation::Raw(samples) => {
+            samples
+                .iter()
+                .map(|(ts, v)| ((*ts, *ts), *v))
+                .collect()
+        }
+        Representation::Packed(packs) => packs,
+    }
 }
 
 #[cfg(test)]
