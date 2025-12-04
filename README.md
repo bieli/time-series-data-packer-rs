@@ -1,4 +1,7 @@
 # time-series-data-packer-rs
+
+![CI status](https://github.com/bieli/time-series-data-packer-rs/actions/workflows/test.yaml/badge.svg)
+
 Time series data packer written in Rust language for data intensive IoT and IIoT projects.
 
 ## Motivations
