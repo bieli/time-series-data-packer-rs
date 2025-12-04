@@ -73,7 +73,7 @@ Samples == Original recovered: true
 
 
 ## TODO list
-- [ ] CI
+- [X] CI
 - [ ] crates package distribution
 - [ ] prepare great real tests examples from various group of IoT sensors
 - [ ] compare random sequences compressions rates with real data from IoT sensors
