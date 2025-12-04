@@ -1,17 +1,14 @@
 pub mod helpers;
 pub mod strategies;
 
-
 use std::cmp::Ordering;
 use thiserror::Error;
 
-
-use crate::helpers::Representation;
 use crate::helpers::apply_strategy;
 use crate::helpers::finalize_to_packed;
+use crate::helpers::merge_adjacent_equal_value_ranges;
 use crate::helpers::split_into_windows;
-use crate::strategies::similar_values::merge_adjacent_equal_value_ranges;
-
+use crate::helpers::Representation;
 
 // A single raw sample: (timestamp_seconds, value)
 pub type TSSamples = (f64, f64);
@@ -68,10 +65,7 @@ impl TimeSeriesDataPacker {
             return Err(TSPackError::InvalidWindow);
         }
 
-        samples.sort_by(|a, b| {
-            a.0.partial_cmp(&b.0)
-                .unwrap_or(Ordering::Equal)
-        });
+        samples.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
 
         let windows = split_into_windows(&samples, attributes.microseconds_time_window);
 
@@ -96,7 +90,6 @@ impl TimeSeriesDataPacker {
 
         Ok(merged)
     }
-
 }
 
 #[cfg(test)]
@@ -130,13 +123,12 @@ mod tests {
 
     #[test]
     fn test_invalid_window_error_in_data_packer_pack() {
-        let samples = vec![
-        ];
+        let samples = vec![];
 
         let mut packer = TimeSeriesDataPacker::new();
         let attrs = TSPackAttributes {
             strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
-            microseconds_time_window: 0
+            microseconds_time_window: 0,
         };
 
         let result = packer.pack(samples.clone(), attrs);

@@ -1,6 +1,8 @@
-use crate::TSSamples;
-use crate::TSPackedSamples;
+use std::cmp::Ordering;
+
 use crate::TSPackStrategyType;
+use crate::TSPackedSamples;
+use crate::TSSamples;
 
 use crate::strategies::similar_values::similar_values_pack;
 
@@ -48,28 +50,47 @@ pub fn apply_strategy(
     strategy: &TSPackStrategyType,
 ) -> Representation {
     match strategy {
-        TSPackStrategyType::TSPackSimilarValuesStrategy => {
-            match representation {
-                Representation::Raw(samples) => {
-                    Representation::Packed(similar_values_pack(&samples))
-                }
-                Representation::Packed(packs) => todo!()
-            }
+        TSPackStrategyType::TSPackSimilarValuesStrategy => match representation {
+            Representation::Raw(samples) => Representation::Packed(similar_values_pack(&samples)),
+            Representation::Packed(packs) => todo!(),
         },
-        &TSPackStrategyType::TSPackMeanStrategy { .. } => todo!()
+        &TSPackStrategyType::TSPackMeanStrategy { .. } => todo!(),
     }
 }
 
 pub fn finalize_to_packed(representation: Representation) -> Vec<TSPackedSamples> {
     match representation {
-        Representation::Raw(samples) => {
-            samples
-                .iter()
-                .map(|(ts, v)| ((*ts, *ts), *v))
-                .collect()
-        }
+        Representation::Raw(samples) => samples.iter().map(|(ts, v)| ((*ts, *ts), *v)).collect(),
         Representation::Packed(packs) => packs,
     }
+}
+
+pub fn approx_touching(end: f64, start: f64) -> bool {
+    const EPS: f64 = 1e-12;
+    (end - start).abs() <= EPS || end <= start
+}
+
+pub fn merge_adjacent_equal_value_ranges(mut packs: Vec<TSPackedSamples>) -> Vec<TSPackedSamples> {
+    if packs.is_empty() {
+        return packs;
+    }
+
+    packs.sort_by(|a, b| a.0 .0.partial_cmp(&b.0 .0).unwrap_or(Ordering::Equal));
+
+    let mut merged: Vec<TSPackedSamples> = Vec::new();
+    let mut current = packs[0];
+
+    for &next in &packs[1..] {
+        if current.1 == next.1 && approx_touching(current.0 .1, next.0 .0) {
+            current = ((current.0 .0, next.0 .1), current.1);
+        } else {
+            merged.push(current);
+            current = next;
+        }
+    }
+
+    merged.push(current);
+    merged
 }
 
 #[cfg(test)]
