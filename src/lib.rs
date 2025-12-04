@@ -10,6 +10,7 @@ use crate::helpers::Representation;
 use crate::helpers::apply_strategy;
 use crate::helpers::finalize_to_packed;
 use crate::helpers::split_into_windows;
+use crate::strategies::similar_values::merge_adjacent_equal_value_ranges;
 
 
 // A single raw sample: (timestamp_seconds, value)
@@ -86,6 +87,8 @@ impl TimeSeriesDataPacker {
             let packed = finalize_to_packed(current_representation);
             packed_all.extend(packed);
         }
+
+        let merged = merge_adjacent_equal_value_ranges(packed_all);
 
         todo!();
 
