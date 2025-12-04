@@ -90,9 +90,11 @@ impl TimeSeriesDataPacker {
 
         let merged = merge_adjacent_equal_value_ranges(packed_all);
 
-        todo!();
+        self.attributes = Some(attributes.clone());
+        self.original_samples = samples;
+        self.packed_samples = merged.clone();
 
-        Ok(packed_all)
+        Ok(merged)
     }
 
 }
