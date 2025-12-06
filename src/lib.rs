@@ -90,6 +90,20 @@ impl TimeSeriesDataPacker {
 
         Ok(merged)
     }
+
+    pub fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>) {
+        let mut result: Vec<TSSamples> = Vec::new();
+
+        for &((start, end), value) in &self.packed_samples {
+            result.push((start, value));
+
+            if end != start {
+                result.push((end, value));
+            }
+        }
+
+        (self.attributes.clone(), result)
+    }
 }
 
 #[cfg(test)]
@@ -97,7 +111,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_similar_values_strategy() {
+    fn test_similar_values_strategy_check_pack_and_unpack() {
         let samples = vec![
             (0.0, 100.0),
             (0.1, 100.0),
@@ -118,6 +132,21 @@ mod tests {
         assert_eq!(packed[0], ((0.0, 0.2), 100.0));
         assert_eq!(packed[1], ((0.3, 0.4), 101.0));
         assert_eq!(packed[2], ((0.5, 0.5), 100.0));
+
+        let (_attrs, unpacked) = packer.unpack();
+        assert_eq!(unpacked.len(), 5);
+        assert_eq!(unpacked[0], (0.0, 100.0));
+
+        // Here you can discovery limitation of the current unpack
+        // logic with TSPackSimilarValuesStrategy - to have lossless
+        // we need to extends struct TSPackedSamples to contains timestamps
+
+        // NOT RECOVERED ITEM: assert_eq!(unpacked[1], (0.1, 100.0));
+
+        assert_eq!(unpacked[1], (0.2, 100.0));
+        assert_eq!(unpacked[2], (0.3, 101.0));
+        assert_eq!(unpacked[3], (0.4, 101.0));
+        assert_eq!(unpacked[4], (0.5, 100.0));
     }
 
     #[test]

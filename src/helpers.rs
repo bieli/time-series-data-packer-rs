@@ -52,7 +52,7 @@ pub fn apply_strategy(
     match strategy {
         TSPackStrategyType::TSPackSimilarValuesStrategy => match representation {
             Representation::Raw(samples) => Representation::Packed(similar_values_pack(&samples)),
-            Representation::Packed(packs) => todo!(),
+            Representation::Packed(packs) => Representation::Packed(merge_adjacent_equal_value_ranges(packs)),
         },
         &TSPackStrategyType::TSPackMeanStrategy { .. } => todo!(),
     }
