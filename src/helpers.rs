@@ -6,6 +6,9 @@ use crate::TSSamples;
 
 use crate::strategies::similar_values::similar_values_pack;
 
+use crate::strategies::mean_based_compression::mean_pack;
+use crate::strategies::mean_based_compression::mean_refine_packs;
+
 #[derive(Debug, Clone)]
 pub enum Representation {
     // Raw samples: (ts, value)
@@ -56,7 +59,16 @@ pub fn apply_strategy(
                 Representation::Packed(merge_adjacent_equal_value_ranges(packs))
             }
         },
-        &TSPackStrategyType::TSPackMeanStrategy { .. } => todo!(),
+        TSPackStrategyType::TSPackMeanStrategy {
+            values_compression_percent,
+        } => match representation {
+            Representation::Raw(samples) => {
+                Representation::Packed(mean_pack(&samples, *values_compression_percent))
+            }
+            Representation::Packed(packs) => {
+                Representation::Packed(mean_refine_packs(packs, *values_compression_percent))
+            }
+        },
     }
 }
 

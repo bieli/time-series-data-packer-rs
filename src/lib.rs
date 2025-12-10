@@ -230,6 +230,114 @@ mod tests {
     }
 
     #[test]
+    fn test_mean_strategy_all_within_5_percents_tolerance() {
+        // Values around 100 within +/- 5% tolerance (95..105)
+        let samples = vec![
+            (0.0, 100.0),
+            (0.05, 100.0),
+            (0.1, 102.0),
+            (0.15, 98.0),
+            (0.2, 100.0),
+            (0.25, 99.0),
+        ];
+
+        let mut packer = TimeSeriesDataPacker::new();
+        let attrs = TSPackAttributes {
+            strategy_types: vec![TSPackStrategyType::TSPackMeanStrategy {
+                values_compression_percent: 5,
+            }],
+            microseconds_time_window: 1_000_000, // 1 second windows
+        };
+
+        let packed = packer.pack(samples.clone(), attrs).unwrap();
+
+        // Single range around average ~99.833(3)
+        assert_eq!(packed.len(), 1);
+        let ((start, end), val) = packed[0];
+        assert!((start - 0.0).abs() < 1e-9);
+        assert!((end - 0.25).abs() < 1e-9);
+        assert!((val - 99.8333333).abs() < 1e-6);
+    }
+
+
+    #[test]
+    fn test_mean_strategy_all_within_5_percents_tolerance_on_real_measurements_example() {
+        let samples = vec![
+            (1.431142, 26.5),
+            (1.513428, 26.5),
+            (1.650571, 26.5),
+            (1.979714, 26.5),
+            (2.253999, 26.5),
+            (2.583142, 26.5),
+            (2.802571, 26.5),
+            (3.021999, 26.5),
+            (3.131714, 26.5),
+            (3.323714, 26.5),
+            (3.488285, 26.5),
+            (3.625428, 26.5),
+            (3.735142, 26.5),
+            (3.872285, 26.5),
+            (3.981999, 26.5),
+            (4.119142, 26.5),
+            (4.256285, 26.5),
+            (4.338571, 26.5),
+            (4.448285, 26.5),
+            (4.530571, 26.5),
+            (4.612857, 26.5),
+            (4.695142, 26.5),
+            (4.777428, 26.5),
+            (4.832285, 26.5),
+            (4.859714, 26.8),
+            (4.887142, 26.8),
+            (4.941999, 26.8),
+            (4.996857, 26.8),
+            (5.024285, 26.8),
+            (5.079142, 27.1),
+            (5.106571, 27.1),
+            (5.133999, 27.1),
+            (5.188857, 27.1),
+            (5.216285, 27.1),
+            (5.243714, 27.1),
+            (5.271142, 27.1),
+            (5.325999, 27.1),
+            (5.353428, 27.1),
+            (5.408285, 27.1),
+            (5.435714, 27.1),
+            (5.490571, 27.1),
+            (5.517999, 27.1),
+            (5.600285, 27.1),
+            (5.709999, 27.1),
+            (5.792285, 27.4),
+            (5.819714, 27.8),
+            (5.874571, 27.4),
+            (5.956857, 27.4),
+            (6.093999, 27.4),
+            (6.231142, 27.4),
+            (6.368285, 27.4),
+            (6.477999, 27.8),
+            (6.532857, 27.8),
+            (6.642571, 28.4),
+            (6.724857, 28.7),
+        ];
+
+        let mut packer = TimeSeriesDataPacker::new();
+        let attrs = TSPackAttributes {
+            strategy_types: vec![TSPackStrategyType::TSPackMeanStrategy {
+                values_compression_percent: 5,
+            }],
+            microseconds_time_window: 1_000_000, // 1 second windows
+        };
+
+        let packed = packer.pack(samples.clone(), attrs).unwrap();
+
+        assert_eq!(packed.len(), 4);
+        assert_eq!(packed[0], ((1.431142, 4.612857), 26.5));
+        assert_eq!(packed[1], ((4.695142, 5.600285), 26.950000000000014));
+        assert_eq!(packed[2], ((5.709999, 6.642571), 27.572727272727274));
+        assert_eq!(packed[3], ((6.724857, 6.724857), 28.7));
+    }
+
+    #[test]
     fn test_invalid_window_error_in_data_packer_pack() {
         let samples = vec![];
 
