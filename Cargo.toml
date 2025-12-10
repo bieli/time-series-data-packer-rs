@@ -1,7 +1,13 @@
 [package]
 name = "time_series_data_packer_rs"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
+authors = ["Marcin Bielak <marcin.bieli+TimeSeriesDataPackerRs@gmail.com>"]
+description = "Time series data packer written in Rust language for data intensive IoT and IIoT projects."
+repository = "https://github.com/bieli/time-series-data-packer-rs"
+homepage = "https://github.com/bieli/time-series-data-packer-rs"
+license = "MIT"
+keywords = ["time-series", "data", "packer", "compressor"]
 
 [dependencies]
 thiserror = "1"
