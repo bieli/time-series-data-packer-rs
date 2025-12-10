@@ -259,7 +259,6 @@ mod tests {
         assert!((val - 99.8333333).abs() < 1e-6);
     }
 
-
     #[test]
     fn test_mean_strategy_all_within_5_percents_tolerance_on_real_measurements_example() {
         let samples = vec![
