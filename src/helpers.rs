@@ -9,6 +9,9 @@ use crate::strategies::similar_values::similar_values_pack;
 use crate::strategies::mean_based_compression::mean_pack;
 use crate::strategies::mean_based_compression::mean_refine_packs;
 
+use crate::strategies::xor_gorilla::xor_pack;
+use crate::strategies::xor_gorilla::xor_unpack;
+
 #[derive(Debug, Clone)]
 pub enum Representation {
     // Raw samples: (ts, value)
@@ -67,6 +70,13 @@ pub fn apply_strategy(
             }
             Representation::Packed(packs) => {
                 Representation::Packed(mean_refine_packs(packs, *values_compression_percent))
+            }
+        },
+        TSPackStrategyType::TSPackXorStrategy => match representation {
+            Representation::Raw(samples) => Representation::Packed(xor_pack(&samples)),
+            Representation::Packed(packs) => {
+                let raw = xor_unpack(&packs);
+                Representation::Packed(xor_pack(&raw))
             }
         },
     }

@@ -1,8 +1,6 @@
 use crate::TSPackedSamples;
 use crate::TSSamples;
 
-// Compress consecutive identical values into ranges.
-// Each run becomes ((start_ts, end_ts), value).
 pub fn similar_values_pack(samples: &[TSSamples]) -> Vec<TSPackedSamples> {
     if samples.is_empty() {
         return Vec::new();

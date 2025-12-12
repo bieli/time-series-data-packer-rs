@@ -20,6 +20,7 @@ pub type TSPackedSamples = ((f64, f64), f64);
 pub enum TSPackStrategyType {
     TSPackSimilarValuesStrategy,
     TSPackMeanStrategy { values_compression_percent: u8 },
+    TSPackXorStrategy,
 }
 
 #[derive(Debug, Clone)]
