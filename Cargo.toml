@@ -1,6 +1,6 @@
 [package]
 name = "time_series_data_packer_rs"
-version = "0.3.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["Marcin Bielak <marcin.bieli+TimeSeriesDataPackerRs@gmail.com>"]
 description = "Time series data packer written in Rust language for data intensive IoT and IIoT projects."
