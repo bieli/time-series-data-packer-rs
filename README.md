@@ -79,7 +79,8 @@ Samples == Original recovered: true
 
 ## TODO list
 - [X] CI
-- [ ] crates package distribution
+- [x] crates package distribution
+- [ ] I want to have visual UI, to create signals patterns and use it as input to easy wrinting unit tests
 - [ ] prepare great real tests examples from various group of IoT sensors
 - [ ] compare random sequences compressions rates with real data from IoT sensors
 - [ ] add Python interface based on PyO3 library
