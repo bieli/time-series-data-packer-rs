@@ -22,6 +22,7 @@ This is an experimental project with saving storage size for time series data co
   - `TSPackAttributes`
     - `strategy_types: Vec<TSPackStrategyType>` - what method of compression we would like to use
     - `microseconds_time_window: u64` - time window to apply packing strategies in microseconds resolution (sometimes seconds means we have a 100k + similar measurements, so it's good to define more real limits for bare metal and sensor specific criteria for particular data domains)
+    - `precision_epsilon: f64` - dedicated precision for packing strategies optimization (this is a realistic limits for real/float numbers, when sometimes you no need high-accuracy, but more minimize storage usage strategy)
   - `TSSamples`
     - f64 - timestamp in seconds
     - f64 - real value

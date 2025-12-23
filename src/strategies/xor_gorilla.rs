@@ -80,16 +80,20 @@ mod xor_gorilla_tests {
     fn test_xor_strategy_integration() {
         let samples = vec![(0.0, 10.0), (0.1, 20.0), (0.2, 30.0)];
 
+        let expected = vec![(0.0, 10.0), (0.1, 20.0)];
+
         let mut packer = TimeSeriesDataPacker::new();
         let attrs = TSPackAttributes {
             strategy_types: vec![TSPackStrategyType::TSPackXorStrategy],
             microseconds_time_window: 1_000_000,
+            precision_epsilon: 0.1,
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
         let unpacked = xor_unpack(&packed);
 
-        assert_eq!(samples.len(), unpacked.len());
+        assert_eq!(expected, unpacked);
+
         for (orig, rec) in samples.iter().zip(unpacked.iter()) {
             assert!((orig.1 - rec.1).abs() < 1e-12);
         }

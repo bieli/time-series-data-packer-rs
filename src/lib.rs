@@ -17,16 +17,39 @@ pub type TSSamples = (f64, f64);
 pub type TSPackedSamples = ((f64, f64), f64);
 
 #[derive(Debug, Clone)]
+pub enum TSPackPrecisionDataType {
+    WavDerivedAudio,
+    IoTSensors,
+    HighPrecisionTelemetry,
+    ScientificData,
+}
+
+impl TSPackPrecisionDataType {
+    pub fn epsilon(&self) -> f64 {
+        match self {
+            TSPackPrecisionDataType::WavDerivedAudio => 1e-4,
+            TSPackPrecisionDataType::IoTSensors => 1e-5,
+            TSPackPrecisionDataType::HighPrecisionTelemetry => 1e-7,
+            TSPackPrecisionDataType::ScientificData => 1e-9,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum TSPackStrategyType {
     TSPackSimilarValuesStrategy,
     TSPackMeanStrategy { values_compression_percent: u8 },
     TSPackXorStrategy,
+
+    // lossless for audio or for any data with high deviations
+    TSPackDeltaStrategy,
 }
 
 #[derive(Debug, Clone)]
 pub struct TSPackAttributes {
     pub strategy_types: Vec<TSPackStrategyType>,
     pub microseconds_time_window: u64,
+    pub precision_epsilon: f64,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -76,14 +99,18 @@ impl TimeSeriesDataPacker {
             let mut current_representation = Representation::Raw(window_samples);
 
             for strategy in &attributes.strategy_types {
-                current_representation = apply_strategy(current_representation, strategy);
+                current_representation = apply_strategy(
+                    current_representation,
+                    strategy,
+                    attributes.precision_epsilon,
+                );
             }
 
             let packed = finalize_to_packed(current_representation);
             packed_all.extend(packed);
         }
 
-        let merged = merge_adjacent_equal_value_ranges(packed_all);
+        let merged = merge_adjacent_equal_value_ranges(packed_all, attributes.precision_epsilon);
 
         self.attributes = Some(attributes.clone());
         self.original_samples = samples;
@@ -126,6 +153,7 @@ mod tests {
         let attrs = TSPackAttributes {
             strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
             microseconds_time_window: 1_000_000, // 1 second windows
+            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
@@ -214,6 +242,7 @@ mod tests {
         let attrs = TSPackAttributes {
             strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
             microseconds_time_window: 1_000_000, // 1 second windows
+            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
@@ -248,6 +277,7 @@ mod tests {
                 values_compression_percent: 5,
             }],
             microseconds_time_window: 1_000_000, // 1 second windows
+            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
@@ -326,6 +356,7 @@ mod tests {
                 values_compression_percent: 5,
             }],
             microseconds_time_window: 1_000_000, // 1 second windows
+            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
@@ -345,6 +376,7 @@ mod tests {
         let attrs = TSPackAttributes {
             strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
             microseconds_time_window: 0,
+            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
         };
 
         let result = packer.pack(samples.clone(), attrs);
