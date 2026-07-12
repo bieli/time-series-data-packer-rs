@@ -1,11 +1,10 @@
 on:
   push:
-    # Pattern matched against refs/tags
-    tags:        
-      - '*'           # Push events to every tag not containing /
+    tags:
+      - '*'
   workflow_dispatch:
 
-name: Publish tags to creates.io
+name: Publish tags to crates.io
 
 jobs:
   publish:
@@ -18,6 +17,42 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - run: cargo publish --token ${CRATES_TOKEN}
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          EXPECTED_TAG="v${VERSION}"
+
+          echo "Git tag:        ${TAG}"
+          echo "Cargo.toml:     ${VERSION}"
+          echo "Expected tag:   ${EXPECTED_TAG}"
+
+          if [ "${TAG}" != "${EXPECTED_TAG}" ]; then
+            echo "::error::Tag '${TAG}' does not match Cargo.toml version '${VERSION}'. Expected tag '${EXPECTED_TAG}'."
+            exit 1
+          fi
+
+      - name: Check if version is already on crates.io
+        id: crates_check
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://crates.io/api/v1/crates/time_series_data_packer_rs/${VERSION}")
+
+          if [ "${HTTP_CODE}" = "200" ]; then
+            echo "already_published=true" >> "${GITHUB_OUTPUT}"
+            echo "::warning::time_series_data_packer_rs@${VERSION} is already published on crates.io — skipping publish."
+          else
+            echo "already_published=false" >> "${GITHUB_OUTPUT}"
+            echo "Version ${VERSION} is not on crates.io yet — proceeding with publish."
+          fi
+
+      - name: Dry-run publish
+        if: steps.crates_check.outputs.already_published != 'true'
+        run: cargo publish --dry-run
+
+      - name: Publish to crates.io
+        if: steps.crates_check.outputs.already_published != 'true'
+        run: cargo publish
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
