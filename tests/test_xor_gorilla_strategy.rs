@@ -1,16 +1,10 @@
 use time_series_data_packer_rs::{
-    TSPackAttributes, TSPackStrategyType, TSPackXorGorillaStrategy, TSSamples,
-    TimeSeriesDataPacker,
+    TSPackAttributes, TSPackStrategyType, TSPackXorGorillaStrategy, TSSamples, TimeSeriesDataPacker,
 };
 
 #[test]
 fn test_xor_gorilla_strategy_lossless_roundtrip() {
-    let samples: Vec<TSSamples> = vec![
-        (0.0, 100.0),
-        (0.1, 101.0),
-        (0.2, 105.5),
-        (0.3, -50.25),
-    ];
+    let samples: Vec<TSSamples> = vec![(0.0, 100.0), (0.1, 101.0), (0.2, 105.5), (0.3, -50.25)];
 
     let mut packer = TimeSeriesDataPacker::new();
     let attrs = TSPackAttributes {

@@ -71,7 +71,10 @@ mod tests {
     fn assert_samples_eq(expected: &[TSSamples], actual: &[TSSamples]) {
         assert_eq!(expected.len(), actual.len());
         for (exp, act) in expected.iter().zip(actual.iter()) {
-            assert!((exp.0 - act.0).abs() < 1e-12, "timestamp mismatch: {exp:?} vs {act:?}");
+            assert!(
+                (exp.0 - act.0).abs() < 1e-12,
+                "timestamp mismatch: {exp:?} vs {act:?}"
+            );
             assert!(
                 (exp.1 - act.1).abs() < 1e-12 || (exp.1.is_nan() && act.1.is_nan()),
                 "value mismatch: {exp:?} vs {act:?}"
@@ -81,12 +84,7 @@ mod tests {
 
     #[test]
     fn pack_unpack_roundtrip() {
-        let samples = vec![
-            (0.0, 100.0),
-            (0.1, 101.0),
-            (0.2, 105.5),
-            (0.3, -50.25),
-        ];
+        let samples = vec![(0.0, 100.0), (0.1, 101.0), (0.2, 105.5), (0.3, -50.25)];
 
         let packed = TSPackXorGorillaStrategy::pack(&samples);
         let unpacked = TSPackXorGorillaStrategy::unpack(&packed);
@@ -137,9 +135,7 @@ mod tests {
     #[test]
     fn handles_nan_and_negative_zero() {
         let samples = vec![(0.0, f64::NAN), (0.1, -0.0), (0.2, 1.0)];
-        let unpacked = TSPackXorGorillaStrategy::unpack(&TSPackXorGorillaStrategy::pack(
-            &samples,
-        ));
+        let unpacked = TSPackXorGorillaStrategy::unpack(&TSPackXorGorillaStrategy::pack(&samples));
 
         assert!(unpacked[0].1.is_nan());
         assert_eq!(unpacked[1].1.to_bits(), (-0.0_f64).to_bits());

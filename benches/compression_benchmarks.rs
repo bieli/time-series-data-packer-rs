@@ -100,5 +100,9 @@ fn benchmark_xor_gorilla_incremental(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, benchmark_pack_strategies, benchmark_xor_gorilla_incremental);
+criterion_group!(
+    benches,
+    benchmark_pack_strategies,
+    benchmark_xor_gorilla_incremental
+);
 criterion_main!(benches);
