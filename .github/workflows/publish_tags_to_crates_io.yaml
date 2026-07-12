@@ -21,7 +21,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          EXPECTED_TAG="v${VERSION}"
+          EXPECTED_TAG="${VERSION}"
 
           echo "Git tag:        ${TAG}"
           echo "Cargo.toml:     ${VERSION}"
