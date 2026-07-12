@@ -529,6 +529,16 @@ Original recovered: [(0.0, 100.0), (0.001, 100.0), (0.002, 102.0), (0.003, 98.0)
 Samples == Original recovered: true
 ```
 
+## Examples
+
+Practical strategy demos with **IoT sensor** and **WAV/audio** datasets:
+
+```bash
+cargo run --manifest-path examples/strategy_showcase/Cargo.toml -- all
+```
+
+See [`examples/README.md`](examples/README.md) for dataset descriptions, delta-of-delta industry context, and the full strategy → data mapping.
+
 ## Performance benchmarks
 
 Run Criterion benchmarks for all strategies:
@@ -547,8 +557,9 @@ Benchmark groups:
 ## TODO list
 - [X] CI
 - [x] crates package distribution
+- [x] add implementations for all important strategies, what I have in mind
+- [X] prepare great real tests examples from various group of IoT sensors
 - [ ] I want to have visual UI, to create signals patterns and use it as input to easy wrinting unit tests
-- [ ] prepare great real tests examples from various group of IoT sensors
 - [ ] compare random sequences compressions rates with real data from IoT sensors
 - [ ] add Python interface based on PyO3 library
 - [ ] public Python package in TEST and official python packages for inc. popularity

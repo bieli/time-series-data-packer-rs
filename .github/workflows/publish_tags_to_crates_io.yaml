@@ -41,10 +41,10 @@ jobs:
 
           if [ "${HTTP_CODE}" = "200" ]; then
             echo "already_published=true" >> "${GITHUB_OUTPUT}"
-            echo "::warning::time_series_data_packer_rs@${VERSION} is already published on crates.io — skipping publish."
+            echo "::warning::time_series_data_packer_rs@${VERSION} is already published on crates.io - skipping publish."
           else
             echo "already_published=false" >> "${GITHUB_OUTPUT}"
-            echo "Version ${VERSION} is not on crates.io yet — proceeding with publish."
+            echo "Version ${VERSION} is not on crates.io yet - proceeding with publish."
           fi
 
       - name: Dry-run publish
