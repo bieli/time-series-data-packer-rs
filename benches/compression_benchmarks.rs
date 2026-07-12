@@ -60,6 +60,15 @@ fn benchmark_pack_strategies(c: &mut Criterion) {
             })
         });
 
+        group.bench_function("delta_of_delta", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackDeltaOfDeltaStrategy,
+                ))
+            })
+        });
+
         group.bench_function("xor_gorilla", |b| {
             b.iter(|| {
                 black_box(pack_with_strategy(
@@ -95,6 +104,22 @@ fn make_alternating_samples(size: usize) -> Vec<TSSamples> {
     (0..size)
         .map(|i| (i as f64 * 0.001, if i % 2 == 0 { 1.0 } else { 2.0 }))
         .collect()
+}
+
+fn make_accelerating_samples(size: usize) -> Vec<TSSamples> {
+    let mut samples = Vec::with_capacity(size);
+    let mut value = 100.0;
+    let mut delta = 0.0;
+
+    for i in 0..size {
+        if i > 0 {
+            delta += 0.001;
+            value += delta;
+        }
+        samples.push((i as f64 * 0.001, value));
+    }
+
+    samples
 }
 
 fn benchmark_xor_gorilla_incremental(c: &mut Criterion) {
@@ -179,9 +204,37 @@ fn benchmark_simple8b_incremental(c: &mut Criterion) {
     }
 }
 
+fn benchmark_delta_of_delta_accelerating(c: &mut Criterion) {
+    let sizes = [1_000, 10_000, 100_000];
+
+    for size in sizes {
+        let samples = make_accelerating_samples(size);
+        let mut group = c.benchmark_group(format!("delta_of_delta_accelerating_{size}"));
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_function("pack", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackDeltaOfDeltaStrategy,
+                ))
+            })
+        });
+
+        let packed = pack_with_strategy(&samples, TSPackStrategyType::TSPackDeltaOfDeltaStrategy);
+
+        group.bench_function("unpack", |b| {
+            b.iter(|| black_box(TSPackDeltaOfDeltaStrategy::unpack(black_box(&packed))))
+        });
+
+        group.finish();
+    }
+}
+
 criterion_group!(
     benches,
     benchmark_pack_strategies,
+    benchmark_delta_of_delta_accelerating,
     benchmark_xor_gorilla_incremental,
     benchmark_run_length_alternating,
     benchmark_simple8b_incremental

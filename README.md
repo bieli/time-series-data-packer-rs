@@ -166,7 +166,36 @@ Best for: smooth signals where each step is a small change from the previous one
 
 ---
 
-### 5. XOR Gorilla (`TSPackXorStrategy`)
+### 5. Delta-of-Delta (`TSPackDeltaOfDeltaStrategy`)
+
+Best for: signals with smooth acceleration - trends where the *rate of change* itself changes slowly.
+
+```
+  RAW values (constant acceleration)       PACKED
+  ──────────────────────────────────       ──────
+  10 ──► 12 ──► 15 ──► 19 ──► 24           v0   d1   dod   dod   dod
+            deltas:  +2   +3   +4   +5     10   +2   +1   +1   +1
+            d-o-d:        +1   +1   +1      raw  delta dΔ   dΔ   dΔ
+```
+
+```
+  Delta layer:        +2      +3      +4      +5
+                       └──+1──┘└──+1──┘└──+1──┘
+  Delta-of-delta:           +1      +1      +1   ← small numbers, easy to compress
+
+  Pack:   v0, (v1-v0), then (delta_i - delta_{i-1}) for i >= 2
+  Unpack: v0 → v0+d1 → … ;  delta_i = delta_{i-1} + dodelta_i
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless (values) | Yes - exact double-precision reconstruction |
+| Best when | Delta-of-delta values cluster near zero (smooth trends) |
+| Recovery | `TSPackDeltaOfDeltaStrategy::unpack` |
+
+---
+
+### 6. XOR Gorilla (`TSPackXorStrategy`)
 
 Best for: floating-point series with small bit-level changes (Facebook Gorilla TSDB style).
 
@@ -198,7 +227,7 @@ Best for: floating-point series with small bit-level changes (Facebook Gorilla T
 
 ---
 
-### 6. Simple-8b (`TSPackSimple8bStrategy`)
+### 7. Simple-8b (`TSPackSimple8bStrategy`)
 
 Best for: many small integer deltas - packs dozens of deltas into one 64-bit word.
 
@@ -254,6 +283,7 @@ Best for: many small integer deltas - packs dozens of deltas into one 64-bit wor
   │ Slow drift around mean │ Mean Strategy                                  │
   │ Long exact plateaus    │ Run-length                                     │
   │ Smooth numeric curve   │ Delta                                          │
+  │ Smooth acceleration  │ Delta-of-Delta                                 │
   │ Floats, small changes  │ XOR Gorilla                                    │
   │ Many tiny steps        │ Simple-8b                                      │
   └────────────────────────┴────────────────────────────────────────────────┘
@@ -261,10 +291,11 @@ Best for: many small integer deltas - packs dozens of deltas into one 64-bit wor
   Lossless value recovery:
     XOR Gorilla  →  TSPackXorGorillaStrategy::unpack
     Delta        →  TSPackDeltaStrategy::unpack
+    Delta-of-Delta → TSPackDeltaOfDeltaStrategy::unpack
     Simple-8b    →  TSPackSimple8bStrategy::unpack  (approximate)
 
   TimeSeriesDataPacker::unpack()  →  expands time ranges only;
-                                     does NOT decode XOR / Delta / Simple-8b payloads
+                                     does NOT decode XOR / Delta / Delta-of-Delta / Simple-8b payloads
 ```
 
 ---
@@ -288,6 +319,7 @@ Available compression strategies (can be chained in `TSPackAttributes::strategy_
 | `TSPackMeanStrategy { values_compression_percent: u8 }` | Groups values within +/-N% of the window mean. E.g. `5` packs `100, 102, 98, 100, 99` around their average. |
 | `TSPackXorStrategy` | **XOR Gorilla** - lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
 | `TSPackDeltaStrategy` | Stores first value raw, then successive deltas (`value - previous`). Lossless for arithmetic differences. |
+| `TSPackDeltaOfDeltaStrategy` | **Delta-of-delta** - stores first value raw, first delta, then delta-of-delta for subsequent points. Lossless; ideal for smoothly accelerating signals. Use [`TSPackDeltaOfDeltaStrategy::unpack`] for recovery. |
 | `TSPackRunLengthStrategy` | **Run-length encoding (RLE)** - collapses consecutive identical values (exact IEEE-754 bit match) into a single time range. Run length is implicit in `(start_ts, end_ts)`. |
 | `TSPackSimple8bStrategy` | **Simple-8b** - variable-bit packing of zigzag-encoded, scaled value deltas and timestamp deltas. First sample stored as anchor; reconstruction is approximate within `precision_epsilon`. Use [`TSPackSimple8bStrategy::unpack`] for recovery. |
 
@@ -314,7 +346,7 @@ Configuration passed to [`TimeSeriesDataPacker::pack`]:
 |-------|------|-------------|
 | `strategy_types` | `Vec<TSPackStrategyType>` | Compression strategies applied in order per time window |
 | `microseconds_time_window` | `u64` | Window size in microseconds; samples are split before packing |
-| `precision_epsilon` | `f64` | Tolerance for value comparison and rounding (ignored for word-exact strategies: XOR Gorilla, Delta, Simple-8b) |
+| `precision_epsilon` | `f64` | Tolerance for value comparison and rounding (ignored for word-exact strategies: XOR Gorilla, Delta, Delta-of-Delta, Simple-8b) |
 
 #### `TimeSeriesDataPacker`
 Main packer state object.
@@ -323,7 +355,7 @@ Main packer state object.
 |--------|-----------|-------------|
 | `new` | `fn new() -> Self` | Create an empty packer |
 | `pack` | `fn pack(&mut self, samples: Vec<TSSamples>, attributes: TSPackAttributes) -> Result<Vec<TSPackedSamples>, TSPackError>` | Sort, window, apply strategies, and store packed output |
-| `unpack` | `fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>)` | Expand packed ranges to timestamp/value pairs (returns encoded values for XOR/Delta strategies, not reconstructed originals) |
+| `unpack` | `fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>)` | Expand packed ranges to timestamp/value pairs (returns encoded values for XOR/Delta/Delta-of-Delta strategies, not reconstructed originals) |
 
 ### Strategy modules (direct use)
 
@@ -344,6 +376,16 @@ Delta encoding for float series.
 |--------|-----------|-------------|
 | `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Store first value raw, then deltas |
 | `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Reconstruct original values from deltas |
+
+#### `TSPackDeltaOfDeltaStrategy`
+Delta-of-delta encoding for float series.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Store first value raw, first delta, then delta-of-delta |
+| `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Reconstruct original values from delta-of-delta chain |
+
+Convenience functions: `delta_of_delta_pack`, `delta_of_delta_unpack`.
 
 #### `TSPackRunLengthStrategy`
 Run-length encoding for repeated values.
@@ -496,7 +538,8 @@ cargo bench --bench compression_benchmarks
 ```
 
 Benchmark groups:
-- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, XOR Gorilla, Run-length, and Simple-8b strategies
+- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, Delta-of-Delta, XOR Gorilla, Run-length, and Simple-8b strategies
+- `delta_of_delta_accelerating_{size}` - Delta-of-Delta pack and unpack on smoothly accelerating values
 - `xor_gorilla_incremental_{size}` - XOR Gorilla pack and unpack on slowly changing values
 - `run_length_alternating_{size}` - Run-length pack and unpack on alternating-value series
 - `simple8b_incremental_{size}` - Simple-8b pack and unpack on slowly changing values

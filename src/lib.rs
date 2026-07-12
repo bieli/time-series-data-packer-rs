@@ -13,6 +13,7 @@ use crate::helpers::uses_bit_exact_encoding;
 use crate::helpers::Representation;
 
 pub use crate::strategies::delta::TSPackDeltaStrategy;
+pub use crate::strategies::delta_of_delta::TSPackDeltaOfDeltaStrategy;
 pub use crate::strategies::run_length::TSPackRunLengthStrategy;
 pub use crate::strategies::simple_8b::TSPackSimple8bStrategy;
 pub use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
@@ -54,6 +55,9 @@ pub enum TSPackStrategyType {
 
     // lossless for audio or for any data with high deviations
     TSPackDeltaStrategy,
+
+    /// Delta-of-delta encoding: first value raw, first delta, then delta-of-delta.
+    TSPackDeltaOfDeltaStrategy,
 
     /// Run-length encoding for consecutive identical values (exact bit match).
     TSPackRunLengthStrategy,

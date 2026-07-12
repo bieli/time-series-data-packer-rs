@@ -10,6 +10,7 @@ use crate::strategies::mean_based_compression::mean_pack;
 use crate::strategies::mean_based_compression::mean_refine_packs;
 
 use crate::strategies::delta::TSPackDeltaStrategy;
+use crate::strategies::delta_of_delta::TSPackDeltaOfDeltaStrategy;
 use crate::strategies::run_length::TSPackRunLengthStrategy;
 use crate::strategies::simple_8b::TSPackSimple8bStrategy;
 use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
@@ -103,6 +104,15 @@ pub fn apply_strategy(
                 Representation::Packed(repacked)
             }
         },
+        TSPackStrategyType::TSPackDeltaOfDeltaStrategy => match representation {
+            Representation::Raw(samples) => {
+                Representation::Packed(TSPackDeltaOfDeltaStrategy::pack(&samples))
+            }
+            Representation::Packed(packs) => {
+                let raw = TSPackDeltaOfDeltaStrategy::unpack(&packs);
+                Representation::Packed(TSPackDeltaOfDeltaStrategy::pack(&raw))
+            }
+        },
         TSPackStrategyType::TSPackRunLengthStrategy => match representation {
             Representation::Raw(samples) => {
                 Representation::Packed(TSPackRunLengthStrategy::pack(&samples))
@@ -181,6 +191,7 @@ pub fn uses_bit_exact_encoding(strategies: &[TSPackStrategyType]) -> bool {
             strategy,
             TSPackStrategyType::TSPackXorStrategy
                 | TSPackStrategyType::TSPackDeltaStrategy
+                | TSPackStrategyType::TSPackDeltaOfDeltaStrategy
                 | TSPackStrategyType::TSPackSimple8bStrategy
         )
     })
