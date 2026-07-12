@@ -78,6 +78,15 @@ fn benchmark_pack_strategies(c: &mut Criterion) {
             })
         });
 
+        group.bench_function("simple8b", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackSimple8bStrategy,
+                ))
+            })
+        });
+
         group.finish();
     }
 }
@@ -142,10 +151,39 @@ fn benchmark_run_length_alternating(c: &mut Criterion) {
     }
 }
 
+fn benchmark_simple8b_incremental(c: &mut Criterion) {
+    let sizes = [1_000, 10_000, 100_000];
+    let epsilon = TSPackPrecisionDataType::MilisValues.epsilon();
+
+    for size in sizes {
+        let samples = make_incremental_samples(size);
+        let mut group = c.benchmark_group(format!("simple8b_incremental_{size}"));
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_function("pack", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackSimple8bStrategy,
+                ))
+            })
+        });
+
+        let packed = pack_with_strategy(&samples, TSPackStrategyType::TSPackSimple8bStrategy);
+
+        group.bench_function("unpack", |b| {
+            b.iter(|| black_box(TSPackSimple8bStrategy::unpack(black_box(&packed), epsilon)))
+        });
+
+        group.finish();
+    }
+}
+
 criterion_group!(
     benches,
     benchmark_pack_strategies,
     benchmark_xor_gorilla_incremental,
-    benchmark_run_length_alternating
+    benchmark_run_length_alternating,
+    benchmark_simple8b_incremental
 );
 criterion_main!(benches);

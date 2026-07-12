@@ -29,6 +29,7 @@ Available compression strategies (can be chained in `TSPackAttributes::strategy_
 | `TSPackXorStrategy` | **XOR Gorilla** - lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
 | `TSPackDeltaStrategy` | Stores first value raw, then successive deltas (`value - previous`). Lossless for arithmetic differences. |
 | `TSPackRunLengthStrategy` | **Run-length encoding (RLE)** - collapses consecutive identical values (exact IEEE-754 bit match) into a single time range. Run length is implicit in `(start_ts, end_ts)`. |
+| `TSPackSimple8bStrategy` | **Simple-8b** - variable-bit packing of zigzag-encoded, scaled value deltas and timestamp deltas. First sample stored as anchor; reconstruction is approximate within `precision_epsilon`. Use [`TSPackSimple8bStrategy::unpack`] for recovery. |
 
 #### `TSPackPrecisionDataType`
 Preset precision profiles with an `epsilon()` helper:
@@ -53,7 +54,7 @@ Configuration passed to [`TimeSeriesDataPacker::pack`]:
 |-------|------|-------------|
 | `strategy_types` | `Vec<TSPackStrategyType>` | Compression strategies applied in order per time window |
 | `microseconds_time_window` | `u64` | Window size in microseconds; samples are split before packing |
-| `precision_epsilon` | `f64` | Tolerance for value comparison and rounding (ignored for bit-exact strategies: XOR Gorilla, Delta) |
+| `precision_epsilon` | `f64` | Tolerance for value comparison and rounding (ignored for word-exact strategies: XOR Gorilla, Delta, Simple-8b) |
 
 #### `TimeSeriesDataPacker`
 Main packer state object.
@@ -93,6 +94,41 @@ Run-length encoding for repeated values.
 | `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Expand each run to start and end timestamp/value pairs |
 
 Convenience functions: `rle_pack`, `rle_unpack` (aliases for the above).
+
+#### `TSPackSimple8bStrategy`
+Simple-8b variable-bit integer compression for scaled deltas.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `pack` | `fn pack(samples: &[TSSamples], precision_epsilon: f64) -> Vec<TSPackedSamples>` | Anchor first value, encode scaled value/timestamp deltas into Simple-8b words |
+| `unpack` | `fn unpack(packed: &[TSPackedSamples], precision_epsilon: f64) -> Vec<TSSamples>` | Decode Simple-8b words and reconstruct approximate samples |
+
+Convenience functions: `simple8b_pack`, `simple8b_unpack`, `simple8b_encode`, `simple8b_decode`, `scale_from_epsilon`.
+
+### Simple-8b - how it works
+
+**Packing:**
+1. Store the first sample as an anchor entry `((start_ts, end_ts), first_value)`.
+2. Compute value deltas, scale by `1 / precision_epsilon`, zigzag-encode to unsigned integers.
+3. Encode timestamp deltas (microseconds) as a second integer stream.
+4. Batch each stream into 64-bit Simple-8b words (mode selector in top 4 bits).
+5. Store words as `f64` via bit reinterpretation (tagged with `SIMPLE8B_VALUE_WORD_TAG` / `SIMPLE8B_TIME_WORD_TAG`).
+
+**Unpacking:**
+1. Read anchor for the first value and start timestamp.
+2. Decode value and timestamp word streams.
+3. Integrate deltas back into `(timestamp, value)` pairs.
+
+**Example:**
+```rust
+use time_series_data_packer_rs::*;
+
+let samples = vec![(0.0, 100.0), (1.0, 100.5), (2.0, 101.0)];
+let epsilon = TSPackPrecisionDataType::MilisValues.epsilon();
+
+let packed = TSPackSimple8bStrategy::pack(&samples, epsilon);
+let recovered = TSPackSimple8bStrategy::unpack(&packed, epsilon);
+```
 
 ### Run-length encoding - how it works
 
@@ -200,9 +236,10 @@ cargo bench --bench compression_benchmarks
 ```
 
 Benchmark groups:
-- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, XOR Gorilla, and Run-length strategies
+- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, XOR Gorilla, Run-length, and Simple-8b strategies
 - `xor_gorilla_incremental_{size}` - XOR Gorilla pack and unpack on slowly changing values
 - `run_length_alternating_{size}` - Run-length pack and unpack on alternating-value series
+- `simple8b_incremental_{size}` - Simple-8b pack and unpack on slowly changing values
 
 ## TODO list
 - [X] CI

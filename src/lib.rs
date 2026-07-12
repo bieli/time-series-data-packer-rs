@@ -14,6 +14,7 @@ use crate::helpers::Representation;
 
 pub use crate::strategies::delta::TSPackDeltaStrategy;
 pub use crate::strategies::run_length::TSPackRunLengthStrategy;
+pub use crate::strategies::simple_8b::TSPackSimple8bStrategy;
 pub use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
 
 // A single raw sample: (timestamp_seconds, value)
@@ -56,6 +57,9 @@ pub enum TSPackStrategyType {
 
     /// Run-length encoding for consecutive identical values (exact bit match).
     TSPackRunLengthStrategy,
+
+    /// Simple-8b compression for scaled integer deltas.
+    TSPackSimple8bStrategy,
 }
 
 #[derive(Debug, Clone)]
