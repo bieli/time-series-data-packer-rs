@@ -64,12 +64,7 @@ mod xor_gorilla_tests {
 
     #[test]
     fn test_xor_pack_unpack_roundtrip() {
-        let samples = vec![
-          (0.0, 100.0),
-          (0.1, 101.0),
-          (0.2, 105.5),
-          (0.3, -50.25)
-        ];
+        let samples = vec![(0.0, 100.0), (0.1, 101.0), (0.2, 105.5), (0.3, -50.25)];
 
         let packed = xor_pack(&samples);
         let unpacked = xor_unpack(&packed);
@@ -84,16 +79,9 @@ mod xor_gorilla_tests {
 
     #[test]
     fn test_xor_strategy_integration() {
-        let samples = vec![
-          (0.0, 10.0),
-          (0.1, 20.0),
-          (0.2, 30.0)
-        ];
+        let samples = vec![(0.0, 10.0), (0.1, 20.0), (0.2, 30.0)];
 
-        let expected = vec![
-          (0.0, 10.0),
-          (0.1, 10.0)
-        ];
+        let expected = vec![(0.0, 10.0), (0.1, 10.0)];
 
         let mut packer = TimeSeriesDataPacker::new();
         let attrs = TSPackAttributes {
@@ -118,7 +106,7 @@ mod xor_gorilla_tests {
         let samples: Vec<TSSamples> = vec![];
         let packed = xor_pack(&samples);
         let unpacked = xor_unpack(&packed);
- 
+
         assert!(packed.is_empty());
         assert!(unpacked.is_empty());
     }

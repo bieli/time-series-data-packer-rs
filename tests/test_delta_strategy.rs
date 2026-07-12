@@ -6,18 +6,9 @@ use time_series_data_packer_rs::{
 fn test_delta_strategy_roundtrip() {
     let mut packer = TimeSeriesDataPacker::new();
 
-    let samples: Vec<TSSamples> = vec![
-        (0.0, 1.0),
-        (0.1, 1.2),
-        (0.2, 0.9),
-        (0.3, 1.5)];
+    let samples: Vec<TSSamples> = vec![(0.0, 1.0), (0.1, 1.2), (0.2, 0.9), (0.3, 1.5)];
 
-    let expected: Vec<TSSamples> = vec![
-        (0.0, 1.0),
-        (0.1, 0.2),
-        (0.2, -0.3),
-        (0.3, 0.6),
-    ];
+    let expected: Vec<TSSamples> = vec![(0.0, 1.0), (0.1, 0.2), (0.2, -0.3), (0.3, 0.6)];
 
     let attrs = TSPackAttributes {
         strategy_types: vec![TSPackStrategyType::TSPackDeltaStrategy],

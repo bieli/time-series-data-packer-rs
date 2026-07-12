@@ -103,7 +103,6 @@ pub fn apply_strategy(
     }
 }
 
-
 pub fn finalize_to_packed(rep: Representation, eps: f64) -> Vec<TSPackedSamples> {
     match rep {
         Representation::Raw(samples) => samples

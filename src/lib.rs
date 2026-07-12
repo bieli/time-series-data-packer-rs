@@ -5,9 +5,9 @@ use std::cmp::Ordering;
 use thiserror::Error;
 
 use crate::helpers::apply_strategy;
-use crate::helpers::round_to_precision;
 use crate::helpers::finalize_to_packed;
 use crate::helpers::merge_adjacent_equal_value_ranges;
+use crate::helpers::round_to_precision;
 use crate::helpers::split_into_windows;
 use crate::helpers::Representation;
 
@@ -125,7 +125,11 @@ impl TimeSeriesDataPacker {
     pub fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>) {
         let mut result: Vec<TSSamples> = Vec::new();
 
-        let eps = self.attributes.as_ref().map(|a| a.precision_epsilon).unwrap_or(0.0);
+        let eps = self
+            .attributes
+            .as_ref()
+            .map(|a| a.precision_epsilon)
+            .unwrap_or(0.0);
 
         for &((start, end), value) in &self.packed_samples {
             let rounded_value = round_to_precision(value, eps);
@@ -139,7 +143,6 @@ impl TimeSeriesDataPacker {
 
         (self.attributes.clone(), result)
     }
-
 }
 
 #[cfg(test)]
@@ -309,7 +312,6 @@ mod tests {
         assert_eq!(packed[6], ((261.0, 261.0), 0.09));
         assert_eq!(packed[7], ((273.0, 309.0), 0.10));
     }
-
 
     #[test]
     fn test_similar_values_strategy_on_real_measurements_example_part_2() {
