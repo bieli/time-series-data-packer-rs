@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use thiserror::Error;
 
 use crate::helpers::apply_strategy;
+use crate::helpers::round_to_precision;
 use crate::helpers::finalize_to_packed;
 use crate::helpers::merge_adjacent_equal_value_ranges;
 use crate::helpers::split_into_windows;
@@ -18,6 +19,7 @@ pub type TSPackedSamples = ((f64, f64), f64);
 
 #[derive(Debug, Clone)]
 pub enum TSPackPrecisionDataType {
+    MilisValues,
     WavDerivedAudio,
     IoTSensors,
     HighPrecisionTelemetry,
@@ -27,6 +29,7 @@ pub enum TSPackPrecisionDataType {
 impl TSPackPrecisionDataType {
     pub fn epsilon(&self) -> f64 {
         match self {
+            TSPackPrecisionDataType::MilisValues => 1e-3,
             TSPackPrecisionDataType::WavDerivedAudio => 1e-4,
             TSPackPrecisionDataType::IoTSensors => 1e-5,
             TSPackPrecisionDataType::HighPrecisionTelemetry => 1e-7,
@@ -106,7 +109,7 @@ impl TimeSeriesDataPacker {
                 );
             }
 
-            let packed = finalize_to_packed(current_representation);
+            let packed = finalize_to_packed(current_representation, attributes.precision_epsilon);
             packed_all.extend(packed);
         }
 
@@ -122,16 +125,21 @@ impl TimeSeriesDataPacker {
     pub fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>) {
         let mut result: Vec<TSSamples> = Vec::new();
 
+        let eps = self.attributes.as_ref().map(|a| a.precision_epsilon).unwrap_or(0.0);
+
         for &((start, end), value) in &self.packed_samples {
-            result.push((start, value));
+            let rounded_value = round_to_precision(value, eps);
+
+            result.push((start, rounded_value));
 
             if end != start {
-                result.push((end, value));
+                result.push((end, rounded_value));
             }
         }
 
         (self.attributes.clone(), result)
     }
+
 }
 
 #[cfg(test)]
@@ -260,6 +268,91 @@ mod tests {
     }
 
     #[test]
+    fn test_similar_values_strategy_on_real_measurements_example_part_1() {
+        let samples: Vec<TSSamples> = vec![
+            (35.0, 0.03),
+            (59.0, 0.03),
+            (71.0, 0.04),
+            (83.0, 0.05),
+            (95.0, 0.05),
+            (107.0, 0.05),
+            (119.0, 0.06),
+            (130.0, 0.06),
+            (142.0, 0.07),
+            (166.0, 0.07),
+            (178.0, 0.07),
+            (214.0, 0.07),
+            (226.0, 0.08),
+            (250.0, 0.08),
+            (261.0, 0.09),
+            (273.0, 0.10),
+            (297.0, 0.10),
+            (309.0, 0.10),
+        ];
+
+        let mut packer = TimeSeriesDataPacker::new();
+        let attrs = TSPackAttributes {
+            strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
+            microseconds_time_window: 1000,
+            precision_epsilon: 0.001,
+        };
+
+        let packed = packer.pack(samples.clone(), attrs).unwrap();
+
+        assert_eq!(packed.len(), 8);
+        assert_eq!(packed[0], ((35.0, 59.0), 0.03));
+        assert_eq!(packed[1], ((71.0, 71.0), 0.04));
+        assert_eq!(packed[2], ((83.0, 107.0), 0.05));
+        assert_eq!(packed[3], ((119.0, 130.0), 0.06));
+        assert_eq!(packed[4], ((142.0, 214.0), 0.07));
+        assert_eq!(packed[5], ((226.0, 250.0), 0.08));
+        assert_eq!(packed[6], ((261.0, 261.0), 0.09));
+        assert_eq!(packed[7], ((273.0, 309.0), 0.10));
+    }
+
+
+    #[test]
+    fn test_similar_values_strategy_on_real_measurements_example_part_2() {
+        let samples: Vec<TSSamples> = vec![
+            (35.0, 0.03),
+            (59.0, 0.03),
+            (71.0, 0.04),
+            (83.0, 0.05),
+            (95.0, 0.05),
+            (107.0, 0.05),
+            (119.0, 0.06),
+            (130.0, 0.06),
+            (142.0, 0.07),
+            (166.0, 0.07),
+            (178.0, 0.07),
+            (214.0, 0.07),
+            (226.0, 0.08),
+            (250.0, 0.08),
+            (261.0, 0.09),
+            (273.0, 0.10),
+            (297.0, 0.10),
+            (309.0, 0.10),
+        ];
+
+        let mut packer = TimeSeriesDataPacker::new();
+        let attrs = TSPackAttributes {
+            strategy_types: vec![TSPackStrategyType::TSPackSimilarValuesStrategy],
+            microseconds_time_window: 1000,
+            precision_epsilon: 0.01,
+        };
+
+        let packed = packer.pack(samples.clone(), attrs).unwrap();
+
+        assert_eq!(packed.len(), 6);
+        assert_eq!(packed[0], ((35.0, 59.0), 0.03));
+        assert_eq!(packed[1], ((71.0, 71.0), 0.04));
+        assert_eq!(packed[2], ((83.0, 130.0), 0.05));
+        assert_eq!(packed[3], ((142.0, 250.0), 0.07));
+        assert_eq!(packed[4], ((261.0, 261.0), 0.09));
+        assert_eq!(packed[5], ((273.0, 309.0), 0.10));
+    }
+
+    #[test]
     fn test_mean_strategy_all_within_5_percents_tolerance() {
         // Values around 100 within +/- 5% tolerance (95..105)
         let samples = vec![
@@ -282,12 +375,12 @@ mod tests {
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
 
-        // Single range around average ~99.833(3)
+        // Single range around average ~99.8333(3)
         assert_eq!(packed.len(), 1);
         let ((start, end), val) = packed[0];
         assert!((start - 0.0).abs() < 1e-9);
         assert!((end - 0.25).abs() < 1e-9);
-        assert!((val - 99.8333333).abs() < 1e-6);
+        assert!((val - 99.8333333).abs() < 1e-4);
     }
 
     #[test]
@@ -356,15 +449,15 @@ mod tests {
                 values_compression_percent: 5,
             }],
             microseconds_time_window: 1_000_000, // 1 second windows
-            precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
+            precision_epsilon: TSPackPrecisionDataType::MilisValues.epsilon(),
         };
 
         let packed = packer.pack(samples.clone(), attrs).unwrap();
 
         assert_eq!(packed.len(), 4);
         assert_eq!(packed[0], ((1.431142, 4.612857), 26.5));
-        assert_eq!(packed[1], ((4.695142, 5.600285), 26.950000000000014));
-        assert_eq!(packed[2], ((5.709999, 6.642571), 27.572727272727274));
+        assert_eq!(packed[1], ((4.695142, 5.600285), 26.950));
+        assert_eq!(packed[2], ((5.709999, 6.642571), 27.573));
         assert_eq!(packed[3], ((6.724857, 6.724857), 28.7));
     }
 

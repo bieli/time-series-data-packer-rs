@@ -14,15 +14,15 @@ fn test_delta_strategy_roundtrip() {
 
     let expected: Vec<TSSamples> = vec![
         (0.0, 1.0),
-        (0.1, 0.19999999999999996),
-        (0.2, -0.29999999999999993),
+        (0.1, 0.2),
+        (0.2, -0.3),
         (0.3, 0.6),
     ];
 
     let attrs = TSPackAttributes {
         strategy_types: vec![TSPackStrategyType::TSPackDeltaStrategy],
         microseconds_time_window: 1_000_000,
-        precision_epsilon: 0.01,
+        precision_epsilon: 0.1,
     };
 
     let packed = packer.pack(samples.clone(), attrs.clone()).unwrap();

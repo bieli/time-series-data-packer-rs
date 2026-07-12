@@ -103,10 +103,18 @@ pub fn apply_strategy(
     }
 }
 
-pub fn finalize_to_packed(representation: Representation) -> Vec<TSPackedSamples> {
-    match representation {
-        Representation::Raw(samples) => samples.iter().map(|(ts, v)| ((*ts, *ts), *v)).collect(),
-        Representation::Packed(packs) => packs,
+
+pub fn finalize_to_packed(rep: Representation, eps: f64) -> Vec<TSPackedSamples> {
+    match rep {
+        Representation::Raw(samples) => samples
+            .into_iter()
+            .map(|(t, v)| ((t, t), round_to_precision(v, eps)))
+            .collect(),
+
+        Representation::Packed(packs) => packs
+            .into_iter()
+            .map(|((s, e), v)| ((s, e), round_to_precision(v, eps)))
+            .collect(),
     }
 }
 
@@ -144,6 +152,17 @@ pub fn merge_adjacent_equal_value_ranges(
 
     result.push(current);
     result
+}
+
+#[inline]
+pub fn round_to_precision(value: f64, eps: f64) -> f64 {
+    if eps == 0.0 {
+        return value;
+    }
+
+    let digits = (-eps.log10()).round() as i32;
+    let factor = 10_f64.powi(digits);
+    (value * factor).round() / factor
 }
 
 #[cfg(test)]
