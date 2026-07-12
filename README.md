@@ -14,8 +14,8 @@ This is an experimental project with saving storage size for time series data co
 ## API definitions
 
 ### Type aliases
-- `TSSamples` — `(f64, f64)` — timestamp in seconds, value
-- `TSPackedSamples` — `((f64, f64), f64)` — timestamp range `(start, end)` in seconds, packed value
+- `TSSamples` - `(f64, f64)` - timestamp in seconds, value
+- `TSPackedSamples` - `((f64, f64), f64)` - timestamp range `(start, end)` in seconds, packed value
 
 ### Enums
 
@@ -25,8 +25,8 @@ Available compression strategies (can be chained in `TSPackAttributes::strategy_
 | Variant | Description |
 |---------|-------------|
 | `TSPackSimilarValuesStrategy` | Groups consecutive samples with equal values (within `precision_epsilon`) into a single time range. Default strategy for repetitive sensor readings. |
-| `TSPackMeanStrategy { values_compression_percent: u8 }` | Groups values within ±N% of the window mean. E.g. `5` packs `100, 102, 98, 100, 99` around their average. |
-| `TSPackXorStrategy` | **XOR Gorilla** — lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
+| `TSPackMeanStrategy { values_compression_percent: u8 }` | Groups values within +/-N% of the window mean. E.g. `5` packs `100, 102, 98, 100, 99` around their average. |
+| `TSPackXorStrategy` | **XOR Gorilla** - lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
 | `TSPackDeltaStrategy` | Stores first value raw, then successive deltas (`value - previous`). Lossless for arithmetic differences. |
 
 #### `TSPackPrecisionDataType`
@@ -41,7 +41,7 @@ Preset precision profiles with an `epsilon()` helper:
 | `ScientificData` | `1e-9` |
 
 #### `TSPackError`
-- `InvalidWindow` — returned when `microseconds_time_window` is `0`
+- `InvalidWindow` - returned when `microseconds_time_window` is `0`
 
 ### Structs
 
@@ -83,7 +83,7 @@ Delta encoding for float series.
 | `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Store first value raw, then deltas |
 | `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Reconstruct original values from deltas |
 
-### XOR Gorilla — how it works
+### XOR Gorilla - how it works
 
 **Packing:**
 1. First value is stored as-is.
@@ -164,8 +164,8 @@ cargo bench --bench compression_benchmarks
 ```
 
 Benchmark groups:
-- `pack_constant_{size}` — packing constant-value series with Similar Values, Mean, Delta, and XOR Gorilla strategies
-- `xor_gorilla_incremental_{size}` — XOR Gorilla pack and unpack on slowly changing values
+- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, and XOR Gorilla strategies
+- `xor_gorilla_incremental_{size}` - XOR Gorilla pack and unpack on slowly changing values
 
 ## TODO list
 - [X] CI
