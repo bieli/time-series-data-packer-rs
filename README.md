@@ -28,6 +28,7 @@ Available compression strategies (can be chained in `TSPackAttributes::strategy_
 | `TSPackMeanStrategy { values_compression_percent: u8 }` | Groups values within +/-N% of the window mean. E.g. `5` packs `100, 102, 98, 100, 99` around their average. |
 | `TSPackXorStrategy` | **XOR Gorilla** - lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
 | `TSPackDeltaStrategy` | Stores first value raw, then successive deltas (`value - previous`). Lossless for arithmetic differences. |
+| `TSPackRunLengthStrategy` | **Run-length encoding (RLE)** - collapses consecutive identical values (exact IEEE-754 bit match) into a single time range. Run length is implicit in `(start_ts, end_ts)`. |
 
 #### `TSPackPrecisionDataType`
 Preset precision profiles with an `epsilon()` helper:
@@ -82,6 +83,41 @@ Delta encoding for float series.
 |--------|-----------|-------------|
 | `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Store first value raw, then deltas |
 | `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Reconstruct original values from deltas |
+
+#### `TSPackRunLengthStrategy`
+Run-length encoding for repeated values.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Collapse consecutive identical values into time ranges |
+| `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Expand each run to start and end timestamp/value pairs |
+
+Convenience functions: `rle_pack`, `rle_unpack` (aliases for the above).
+
+### Run-length encoding - how it works
+
+**Packing:**
+1. Scan consecutive samples with the same value (compared by IEEE-754 bit pattern).
+2. Store one entry per run: `((start_ts, end_ts), value)`.
+
+**Unpacking:**
+1. Each run expands to its start and end points (intermediate timestamps within a run are not reconstructed).
+
+**Example:**
+```rust
+use time_series_data_packer_rs::*;
+
+let samples = vec![
+    (0.0, 100.0), (0.1, 100.0), (0.2, 100.0),
+    (0.3, 101.0), (0.4, 101.0),
+];
+
+let packed = TSPackRunLengthStrategy::pack(&samples);
+// [((0.0, 0.2), 100.0), ((0.3, 0.4), 101.0)]
+
+let expanded = TSPackRunLengthStrategy::unpack(&packed);
+// [(0.0, 100.0), (0.2, 100.0), (0.3, 101.0), (0.4, 101.0)]
+```
 
 ### XOR Gorilla - how it works
 
@@ -164,8 +200,9 @@ cargo bench --bench compression_benchmarks
 ```
 
 Benchmark groups:
-- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, and XOR Gorilla strategies
+- `pack_constant_{size}` - packing constant-value series with Similar Values, Mean, Delta, XOR Gorilla, and Run-length strategies
 - `xor_gorilla_incremental_{size}` - XOR Gorilla pack and unpack on slowly changing values
+- `run_length_alternating_{size}` - Run-length pack and unpack on alternating-value series
 
 ## TODO list
 - [X] CI

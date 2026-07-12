@@ -10,6 +10,7 @@ use crate::strategies::mean_based_compression::mean_pack;
 use crate::strategies::mean_based_compression::mean_refine_packs;
 
 use crate::strategies::delta::TSPackDeltaStrategy;
+use crate::strategies::run_length::TSPackRunLengthStrategy;
 use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
 
 #[derive(Debug, Clone)]
@@ -99,6 +100,15 @@ pub fn apply_strategy(
                 let raw = TSPackDeltaStrategy::unpack(&packs);
                 let repacked = TSPackDeltaStrategy::pack(&raw);
                 Representation::Packed(repacked)
+            }
+        },
+        TSPackStrategyType::TSPackRunLengthStrategy => match representation {
+            Representation::Raw(samples) => {
+                Representation::Packed(TSPackRunLengthStrategy::pack(&samples))
+            }
+            Representation::Packed(packs) => {
+                let raw = TSPackRunLengthStrategy::unpack(&packs);
+                Representation::Packed(TSPackRunLengthStrategy::pack(&raw))
             }
         },
     }

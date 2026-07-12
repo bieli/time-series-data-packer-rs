@@ -69,8 +69,23 @@ fn benchmark_pack_strategies(c: &mut Criterion) {
             })
         });
 
+        group.bench_function("run_length", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackRunLengthStrategy,
+                ))
+            })
+        });
+
         group.finish();
     }
+}
+
+fn make_alternating_samples(size: usize) -> Vec<TSSamples> {
+    (0..size)
+        .map(|i| (i as f64 * 0.001, if i % 2 == 0 { 1.0 } else { 2.0 }))
+        .collect()
 }
 
 fn benchmark_xor_gorilla_incremental(c: &mut Criterion) {
@@ -100,9 +115,37 @@ fn benchmark_xor_gorilla_incremental(c: &mut Criterion) {
     }
 }
 
+fn benchmark_run_length_alternating(c: &mut Criterion) {
+    let sizes = [1_000, 10_000, 100_000];
+
+    for size in sizes {
+        let samples = make_alternating_samples(size);
+        let mut group = c.benchmark_group(format!("run_length_alternating_{size}"));
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_function("pack", |b| {
+            b.iter(|| {
+                black_box(pack_with_strategy(
+                    black_box(&samples),
+                    TSPackStrategyType::TSPackRunLengthStrategy,
+                ))
+            })
+        });
+
+        let packed = pack_with_strategy(&samples, TSPackStrategyType::TSPackRunLengthStrategy);
+
+        group.bench_function("unpack", |b| {
+            b.iter(|| black_box(TSPackRunLengthStrategy::unpack(black_box(&packed))))
+        });
+
+        group.finish();
+    }
+}
+
 criterion_group!(
     benches,
     benchmark_pack_strategies,
-    benchmark_xor_gorilla_incremental
+    benchmark_xor_gorilla_incremental,
+    benchmark_run_length_alternating
 );
 criterion_main!(benches);

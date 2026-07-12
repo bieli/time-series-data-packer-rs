@@ -13,6 +13,7 @@ use crate::helpers::uses_bit_exact_encoding;
 use crate::helpers::Representation;
 
 pub use crate::strategies::delta::TSPackDeltaStrategy;
+pub use crate::strategies::run_length::TSPackRunLengthStrategy;
 pub use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
 
 // A single raw sample: (timestamp_seconds, value)
@@ -45,11 +46,16 @@ impl TSPackPrecisionDataType {
 #[derive(Debug, Clone)]
 pub enum TSPackStrategyType {
     TSPackSimilarValuesStrategy,
-    TSPackMeanStrategy { values_compression_percent: u8 },
+    TSPackMeanStrategy {
+        values_compression_percent: u8,
+    },
     TSPackXorStrategy,
 
     // lossless for audio or for any data with high deviations
     TSPackDeltaStrategy,
+
+    /// Run-length encoding for consecutive identical values (exact bit match).
+    TSPackRunLengthStrategy,
 }
 
 #[derive(Debug, Clone)]
