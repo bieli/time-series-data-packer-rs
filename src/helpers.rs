@@ -10,8 +10,7 @@ use crate::strategies::mean_based_compression::mean_pack;
 use crate::strategies::mean_based_compression::mean_refine_packs;
 
 use crate::strategies::delta::TSPackDeltaStrategy;
-use crate::strategies::xor_gorilla::xor_pack;
-use crate::strategies::xor_gorilla::xor_unpack;
+use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
 
 #[derive(Debug, Clone)]
 pub enum Representation {
@@ -82,10 +81,12 @@ pub fn apply_strategy(
             )),
         },
         TSPackStrategyType::TSPackXorStrategy => match representation {
-            Representation::Raw(samples) => Representation::Packed(xor_pack(&samples)),
+            Representation::Raw(samples) => {
+                Representation::Packed(TSPackXorGorillaStrategy::pack(&samples))
+            }
             Representation::Packed(packs) => {
-                let raw = xor_unpack(&packs);
-                Representation::Packed(xor_pack(&raw))
+                let raw = TSPackXorGorillaStrategy::unpack(&packs);
+                Representation::Packed(TSPackXorGorillaStrategy::pack(&raw))
             }
         },
         TSPackStrategyType::TSPackDeltaStrategy => match representation {
@@ -154,6 +155,15 @@ pub fn merge_adjacent_equal_value_ranges(
 }
 
 #[inline]
+pub fn uses_bit_exact_encoding(strategies: &[TSPackStrategyType]) -> bool {
+    strategies.iter().any(|strategy| {
+        matches!(
+            strategy,
+            TSPackStrategyType::TSPackXorStrategy | TSPackStrategyType::TSPackDeltaStrategy
+        )
+    })
+}
+
 pub fn round_to_precision(value: f64, eps: f64) -> f64 {
     if eps == 0.0 {
         return value;

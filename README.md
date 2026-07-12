@@ -12,28 +12,105 @@ Yes, I've been using Open Sourece great data warehouses, time-series dedicated d
 This is an experimental project with saving storage size for time series data connected to specific domains (not random data for sure).
 
 ## API definitions
-- structs:
-  - `TSPackStrategyType`
-    - `TSPackSimilarValuesStrategy` - similar values based simple methodology (repeatition of the same values will be packed - default strategy)
-    - `TSPackMeanStrategy(values_compression_percent: u8)` - mean value based simple methodoloty (for first iteration). `values_compression_percent` parameter value explanations: if we have in time series values i.e. 100, 100, 102, 98, 100, 99, to pack those sieries of values to 100, we need to set this parameter to `5`. Means, we have avg. from series and we try to find, if values are in -5 to 5 range based on avg. value as a reference on values data window.
-    - `TSPackXorStrategy`
-      - Packing: First value stored raw. Each subsequent value is XOR’d with the previous value’s bit pattern. The XOR result is stored as an f64 (lossless since we reinterpret bits).
-      - Unpacking: First value read raw. Each subsequent XOR is applied to reconstruct the original bits.
-  - `TSPackAttributes`
-    - `strategy_types: Vec<TSPackStrategyType>` - what method of compression we would like to use
-    - `microseconds_time_window: u64` - time window to apply packing strategies in microseconds resolution (sometimes seconds means we have a 100k + similar measurements, so it's good to define more real limits for bare metal and sensor specific criteria for particular data domains)
-    - `precision_epsilon: f64` - dedicated precision for packing strategies optimization (this is a realistic limits for real/float numbers, when sometimes you no need high-accuracy, but more minimize storage usage strategy)
-  - `TSSamples`
-    - f64 - timestamp in seconds
-    - f64 - real value
-  - `TSPackedSamples`
-    - (f64, f64) - timestamps ranges in seconds
-    - f64 - i.e using mean values strategy (based on `values_compression_percent` parameter setting for `pack` function - in case of used `TSPackMeanStrategy`)
-  
-- `TimeSeriesDataPacker` - object with methods:
-  - `fn pack(samples: Vec<TSSamples>, attributes: TSPackAttributes) -> Vec<TSPackedSamples>` - packer functon
-  - `fn unpack( -> Vec<TSPackedSamples>) -> (TSPackAttributes, Vec<TSSamples>)` - unpacker functon
 
+### Type aliases
+- `TSSamples` — `(f64, f64)` — timestamp in seconds, value
+- `TSPackedSamples` — `((f64, f64), f64)` — timestamp range `(start, end)` in seconds, packed value
+
+### Enums
+
+#### `TSPackStrategyType`
+Available compression strategies (can be chained in `TSPackAttributes::strategy_types`):
+
+| Variant | Description |
+|---------|-------------|
+| `TSPackSimilarValuesStrategy` | Groups consecutive samples with equal values (within `precision_epsilon`) into a single time range. Default strategy for repetitive sensor readings. |
+| `TSPackMeanStrategy { values_compression_percent: u8 }` | Groups values within ±N% of the window mean. E.g. `5` packs `100, 102, 98, 100, 99` around their average. |
+| `TSPackXorStrategy` | **XOR Gorilla** — lossless bit-level compression inspired by Facebook Gorilla TSDB. First value stored raw; each subsequent value stored as XOR of IEEE-754 bit patterns with the previous value. Use [`TSPackXorGorillaStrategy::unpack`] for lossless recovery. |
+| `TSPackDeltaStrategy` | Stores first value raw, then successive deltas (`value - previous`). Lossless for arithmetic differences. |
+
+#### `TSPackPrecisionDataType`
+Preset precision profiles with an `epsilon()` helper:
+
+| Variant | Epsilon |
+|---------|---------|
+| `MilisValues` | `1e-3` |
+| `WavDerivedAudio` | `1e-4` |
+| `IoTSensors` | `1e-5` |
+| `HighPrecisionTelemetry` | `1e-7` |
+| `ScientificData` | `1e-9` |
+
+#### `TSPackError`
+- `InvalidWindow` — returned when `microseconds_time_window` is `0`
+
+### Structs
+
+#### `TSPackAttributes`
+Configuration passed to [`TimeSeriesDataPacker::pack`]:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `strategy_types` | `Vec<TSPackStrategyType>` | Compression strategies applied in order per time window |
+| `microseconds_time_window` | `u64` | Window size in microseconds; samples are split before packing |
+| `precision_epsilon` | `f64` | Tolerance for value comparison and rounding (ignored for bit-exact strategies: XOR Gorilla, Delta) |
+
+#### `TimeSeriesDataPacker`
+Main packer state object.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `new` | `fn new() -> Self` | Create an empty packer |
+| `pack` | `fn pack(&mut self, samples: Vec<TSSamples>, attributes: TSPackAttributes) -> Result<Vec<TSPackedSamples>, TSPackError>` | Sort, window, apply strategies, and store packed output |
+| `unpack` | `fn unpack(&self) -> (Option<TSPackAttributes>, Vec<TSSamples>)` | Expand packed ranges to timestamp/value pairs (returns encoded values for XOR/Delta strategies, not reconstructed originals) |
+
+### Strategy modules (direct use)
+
+#### `TSPackXorGorillaStrategy`
+XOR Gorilla lossless float compression.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Encode samples with XOR bit-pattern compression |
+| `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Decode XOR-compressed data back to original `f64` values bit-for-bit |
+
+Convenience functions: `xor_pack`, `xor_unpack` (aliases for the above).
+
+#### `TSPackDeltaStrategy`
+Delta encoding for float series.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `pack` | `fn pack(samples: &[TSSamples]) -> Vec<TSPackedSamples>` | Store first value raw, then deltas |
+| `unpack` | `fn unpack(packed: &[TSPackedSamples]) -> Vec<TSSamples>` | Reconstruct original values from deltas |
+
+### XOR Gorilla — how it works
+
+**Packing:**
+1. First value is stored as-is.
+2. Each subsequent value is XOR'd with the previous value's IEEE-754 bit pattern.
+3. The XOR result is stored as `f64` (lossless bit reinterpretation).
+
+**Unpacking:**
+1. First value is read raw.
+2. Each subsequent XOR delta is applied to reconstruct the original bits.
+
+**Lossless recovery example:**
+```rust
+use time_series_data_packer_rs::*;
+
+let samples = vec![(0.0, 100.0), (0.1, 101.0), (0.2, 105.5)];
+
+let mut packer = TimeSeriesDataPacker::new();
+let attrs = TSPackAttributes {
+    strategy_types: vec![TSPackStrategyType::TSPackXorStrategy],
+    microseconds_time_window: 1_000_000,
+    precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
+};
+
+let packed = packer.pack(samples.clone(), attrs)?;
+let recovered = TSPackXorGorillaStrategy::unpack(&packed);
+assert_eq!(samples, recovered);
+```
 
 ### API usage example
 ```rust
@@ -54,6 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             TSPackStrategyType::TSPackMeanStrategy { values_compression_percent: 5 },
         ],
         microseconds_time_window: 1_000, // 1 ms
+        precision_epsilon: TSPackPrecisionDataType::IoTSensors.epsilon(),
     };
 
     let mut packer = TimeSeriesDataPacker::new();
@@ -77,6 +155,17 @@ Original recovered: [(0.0, 100.0), (0.001, 100.0), (0.002, 102.0), (0.003, 98.0)
 Samples == Original recovered: true
 ```
 
+## Performance benchmarks
+
+Run Criterion benchmarks for all strategies:
+
+```bash
+cargo bench --bench compression_benchmarks
+```
+
+Benchmark groups:
+- `pack_constant_{size}` — packing constant-value series with Similar Values, Mean, Delta, and XOR Gorilla strategies
+- `xor_gorilla_incremental_{size}` — XOR Gorilla pack and unpack on slowly changing values
 
 ## TODO list
 - [X] CI

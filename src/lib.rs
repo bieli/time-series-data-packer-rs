@@ -9,7 +9,11 @@ use crate::helpers::finalize_to_packed;
 use crate::helpers::merge_adjacent_equal_value_ranges;
 use crate::helpers::round_to_precision;
 use crate::helpers::split_into_windows;
+use crate::helpers::uses_bit_exact_encoding;
 use crate::helpers::Representation;
+
+pub use crate::strategies::delta::TSPackDeltaStrategy;
+pub use crate::strategies::xor_gorilla::TSPackXorGorillaStrategy;
 
 // A single raw sample: (timestamp_seconds, value)
 pub type TSSamples = (f64, f64);
@@ -98,6 +102,13 @@ impl TimeSeriesDataPacker {
 
         let mut packed_all: Vec<TSPackedSamples> = Vec::new();
 
+        let bit_exact = uses_bit_exact_encoding(&attributes.strategy_types);
+        let finalize_epsilon = if bit_exact {
+            0.0
+        } else {
+            attributes.precision_epsilon
+        };
+
         for window_samples in windows {
             let mut current_representation = Representation::Raw(window_samples);
 
@@ -109,11 +120,15 @@ impl TimeSeriesDataPacker {
                 );
             }
 
-            let packed = finalize_to_packed(current_representation, attributes.precision_epsilon);
+            let packed = finalize_to_packed(current_representation, finalize_epsilon);
             packed_all.extend(packed);
         }
 
-        let merged = merge_adjacent_equal_value_ranges(packed_all, attributes.precision_epsilon);
+        let merged = if bit_exact {
+            packed_all
+        } else {
+            merge_adjacent_equal_value_ranges(packed_all, attributes.precision_epsilon)
+        };
 
         self.attributes = Some(attributes.clone());
         self.original_samples = samples;
