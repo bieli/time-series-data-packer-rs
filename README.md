@@ -11,6 +11,264 @@ In a lot of my IoT projects, I have a pressure on storage size after time series
 Yes, I've been using Open Sourece great data warehouses, time-series dedicated databases and engines/databases do a lot of work for me, but one day I decided to find better - my own - way to time series data compressions.
 This is an experimental project with saving storage size for time series data connected to specific domains (not random data for sure).
 
+## Visual guide — strategies explained (ASCII)
+
+This section is for new engineers. Every strategy transforms raw `(timestamp, value)` samples into packed `((start_ts, end_ts), value)` entries. Strategies can be **chained** inside a time window.
+
+### Pipeline overview
+
+```
+  RAW SAMPLES                         PACKER PIPELINE                         PACKED OUTPUT
+  -------------                       ---------------                         -------------
+
+  (0.00, 100.0)  ──┐
+  (0.01, 100.0)  ──┤  sort by time
+  (0.02, 102.0)  ──┤  ──────────►  split into time windows  ──────────►  apply strategy chain
+  (0.03,  98.0)  ──┤                  (microseconds)              (Similar → Mean → …)
+  (0.04, 100.0)  ──┤                                                         │
+  (0.05,  99.0)  ──┘                                                         ▼
+                                                                    [((0.0, 0.25), 99.83)]
+                                                                    fewer entries = smaller storage
+```
+
+**Data shapes:**
+
+```
+  TSSamples        = ( timestamp_sec , value )
+  TSPackedSamples  = ( ( start_sec , end_sec ) , value )
+```
+
+**Strategy chain example:**
+
+```
+  Raw samples
+       │
+       ▼
+  ┌─────────────────────┐
+  │ Similar Values      │  merge values within epsilon
+  └──────────┬──────────┘
+             ▼
+  ┌─────────────────────┐
+  │ Run-length          │  collapse exact repeats
+  └──────────┬──────────┘
+             ▼
+       Packed output
+```
+
+---
+
+### 1. Similar Values (`TSPackSimilarValuesStrategy`)
+
+Best for: sensor readings that stay flat with tiny noise.
+
+```
+  RAW (6 samples)                         PACKED (3 entries)
+  time ─────────────────────────►         time ─────────────────────────►
+        100   100   100  101  101  100           100───────  101──  100
+         │     │     │    │    │    │              └─range─┘   └┘    └┘
+        t0    t1    t2   t3   t4   t5            (t0..t2)   (t3..t4) (t5)
+
+  Rule: consecutive values within precision_epsilon are merged into ONE range.
+```
+
+```
+  samples:  [100] [100] [100] [101] [101] [100]
+               └──── run ────┘   └run┘    └┘
+  packed:   ((t0, t2), 100.0)  ((t3,t4), 101.0)  ((t5,t5), 100.0)
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless | No — intermediate timestamps inside a range are dropped on unpack |
+| Needs epsilon | Yes |
+
+---
+
+### 2. Mean (`TSPackMeanStrategy { values_compression_percent }`)
+
+Best for: slowly drifting signals where "close enough" to the average is acceptable.
+
+```
+  RAW values around ~100 (±5%)              PACKED (1 entry)
+  ────────────────────────────             ────────────────────────────
+   100  100  102   98  100   99                  avg ≈ 99.83
+    ●────●────●────●────●────●        ──►         ●═══════════════●
+   t0   t1   t2   t3   t4   t5                  (t0 ──────── t5)
+                                                value = mean of window
+```
+
+```
+  Window mean = 99.83
+  Tolerance   = ±5%  →  accepts 95.0 … 104.8
+
+  All samples in range?  YES  →  single packed entry with mean value
+  Any outlier?           NO   →  split into multiple entries
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless | No — values replaced by window average |
+| Parameter | `values_compression_percent` (e.g. `5` = ±5%) |
+
+---
+
+### 3. Run-length encoding (`TSPackRunLengthStrategy`)
+
+Best for: long stretches of **exactly** the same reading (digital states, idle machines).
+
+```
+  RAW                                      PACKED
+  ───                                      ──────
+  100 ────────────────                     100 ═══════════════  (one run)
+  t0  t1  t2  t3  t4  t5                   (t0 ─────────── t5)
+
+  101 ──  101 ──  100                      100══  101══  100
+  t6  t7  t8  t9  t10                      (t6─t7)(t8─t9)(t10)
+```
+
+```
+  RLE vs Similar Values:
+
+  Similar Values:  "100 ≈ 100"  (within epsilon)     → fuzzy match
+  Run-length:      "100 == 100" (same IEEE bits)    → exact match
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless (values) | Yes — exact bit pattern preserved |
+| Lossless (timestamps) | No — only start/end of each run restored |
+
+---
+
+### 4. Delta (`TSPackDeltaStrategy`)
+
+Best for: smooth signals where each step is a small change from the previous one.
+
+```
+  RAW values                             PACKED (deltas)
+  ──────────                             ───────────────
+  100.0 ──► 101.0 ──► 105.5 ──► 103.0    +0.0   +1.0   +4.5   -2.5
+   v0       v1       v2       v3          (raw) (delta)(delta)(delta)
+```
+
+```
+  Pack:   store v0, then (v1-v0), (v2-v1), (v3-v2)
+  Unpack: v0 → v0+d1 → v0+d1+d2 → …
+
+  100.0 ──+1.0──► 101.0 ──+4.5──► 105.5 ──-2.5──► 103.0
+          └─delta─┘         └─delta─┘         └─delta─┘
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless (values) | Yes — arithmetic reconstruction |
+| Entry count | Same as sample count (one delta per sample) |
+
+---
+
+### 5. XOR Gorilla (`TSPackXorStrategy`)
+
+Best for: floating-point series with small bit-level changes (Facebook Gorilla TSDB style).
+
+```
+  IEEE-754 bits (simplified):
+
+  v0 = 100.0  →  bits: 01000000...
+  v1 = 101.0  →  bits: 01000000...   (many bits differ)
+                  XOR:  00010110...   ← stored as next entry
+
+  v2 = 105.5  →  bits: 01000000...
+                  XOR:  00100101...   ← stored as next entry
+```
+
+```
+  Pack:
+  ┌──────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │ v0   │    │ v0 ^ v1 │    │ v1 ^ v2 │    │ v2 ^ v3 │
+  │ raw  │    │  XOR    │    │  XOR    │    │  XOR    │
+  └──────┘    └─────────┘    └─────────┘    └─────────┘
+
+  Unpack:  v1 = v0 ^ xor₁ ,  v2 = v1 ^ xor₂ ,  …
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless | Yes — bit-for-bit float recovery via `TSPackXorGorillaStrategy::unpack` |
+| Note | `TimeSeriesDataPacker::unpack()` returns encoded XOR values, not originals |
+
+---
+
+### 6. Simple-8b (`TSPackSimple8bStrategy`)
+
+Best for: many small integer deltas — packs dozens of deltas into one 64-bit word.
+
+```
+  Step 1 — scale floats to integers (scale = 1 / precision_epsilon):
+
+  values:  100.0 ──► 100.5 ──► 101.0 ──► 102.25
+  deltas:         +500        +500        +1250   (milli-units, zigzag-encoded)
+
+  Step 2 — batch integers into 64-bit Simple-8b words:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ mode │  int │ int │ int │ int │ int │ int │ …  (fits in 64b) │
+  │ 4bit │ 4b  │ 4b  │ 4b  │ 4b  │ 4b  │ 4b  │                   │
+  └──────────────────────────────────────────────────────────────┘
+         ▲
+         └── mode selector (how many ints, how many bits each)
+
+  Step 3 — store in packed format:
+
+  ┌─────────────────┐   ┌──────────┐   ┌──────────┐
+  │ ANCHOR          │   │ VALUE    │   │ TIME     │
+  │ (t0, tN), v0    │   │ words    │   │ words    │
+  └─────────────────┘   └──────────┘   └──────────┘
+```
+
+```
+  64-bit word layout (example mode = 15 integers × 4 bits):
+
+  ┌────┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
+  │mode│v1│v2│v3│v4│v5│v6│v7│v8│v9│..│..│..│..│..│v15│
+  │4bit│4 │4 │4 │4 │4 │4 │4 │4 │4 │  │  │  │  │  │4b │
+  └────┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+   ▲
+   └── top 4 bits = encoding mode
+```
+
+| Property | Value |
+|----------|-------|
+| Lossless | Approximate — within `precision_epsilon` after integer scaling |
+| Compression | High when deltas are small integers |
+| Recovery | `TSPackSimple8bStrategy::unpack` |
+
+---
+
+### Strategy picker (quick reference)
+
+```
+  ┌────────────────────────┬────────────────────────────────────────────────┐
+  │ Your data looks like…  │ Start with…                                    │
+  ├────────────────────────┼────────────────────────────────────────────────┤
+  │ Flat sensor, tiny noise│ Similar Values                                 │
+  │ Slow drift around mean │ Mean Strategy                                  │
+  │ Long exact plateaus    │ Run-length                                     │
+  │ Smooth numeric curve   │ Delta                                          │
+  │ Floats, small changes  │ XOR Gorilla                                    │
+  │ Many tiny steps        │ Simple-8b                                      │
+  └────────────────────────┴────────────────────────────────────────────────┘
+
+  Lossless value recovery:
+    XOR Gorilla  →  TSPackXorGorillaStrategy::unpack
+    Delta        →  TSPackDeltaStrategy::unpack
+    Simple-8b    →  TSPackSimple8bStrategy::unpack  (approximate)
+
+  TimeSeriesDataPacker::unpack()  →  expands time ranges only;
+                                     does NOT decode XOR / Delta / Simple-8b payloads
+```
+
+---
+
 ## API definitions
 
 ### Type aliases
@@ -20,7 +278,9 @@ This is an experimental project with saving storage size for time series data co
 ### Enums
 
 #### `TSPackStrategyType`
-Available compression strategies (can be chained in `TSPackAttributes::strategy_types`):
+Available compression strategies (can be chained in `TSPackAttributes::strategy_types`).
+
+> New to the project? See the [Visual guide — strategies explained (ASCII)](#visual-guide--strategies-explained-ascii) section above for diagrams and a strategy picker.
 
 | Variant | Description |
 |---------|-------------|
