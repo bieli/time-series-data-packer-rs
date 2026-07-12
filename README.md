@@ -11,7 +11,7 @@ In a lot of my IoT projects, I have a pressure on storage size after time series
 Yes, I've been using Open Sourece great data warehouses, time-series dedicated databases and engines/databases do a lot of work for me, but one day I decided to find better - my own - way to time series data compressions.
 This is an experimental project with saving storage size for time series data connected to specific domains (not random data for sure).
 
-## Visual guide — strategies explained (ASCII)
+## Visual guide - strategies explained (ASCII)
 
 This section is for new engineers. Every strategy transforms raw `(timestamp, value)` samples into packed `((start_ts, end_ts), value)` entries. Strategies can be **chained** inside a time window.
 
@@ -79,7 +79,7 @@ Best for: sensor readings that stay flat with tiny noise.
 
 | Property | Value |
 |----------|-------|
-| Lossless | No — intermediate timestamps inside a range are dropped on unpack |
+| Lossless | No - intermediate timestamps inside a range are dropped on unpack |
 | Needs epsilon | Yes |
 
 ---
@@ -107,7 +107,7 @@ Best for: slowly drifting signals where "close enough" to the average is accepta
 
 | Property | Value |
 |----------|-------|
-| Lossless | No — values replaced by window average |
+| Lossless | No - values replaced by window average |
 | Parameter | `values_compression_percent` (e.g. `5` = ±5%) |
 
 ---
@@ -135,8 +135,8 @@ Best for: long stretches of **exactly** the same reading (digital states, idle m
 
 | Property | Value |
 |----------|-------|
-| Lossless (values) | Yes — exact bit pattern preserved |
-| Lossless (timestamps) | No — only start/end of each run restored |
+| Lossless (values) | Yes - exact bit pattern preserved |
+| Lossless (timestamps) | No - only start/end of each run restored |
 
 ---
 
@@ -161,7 +161,7 @@ Best for: smooth signals where each step is a small change from the previous one
 
 | Property | Value |
 |----------|-------|
-| Lossless (values) | Yes — arithmetic reconstruction |
+| Lossless (values) | Yes - arithmetic reconstruction |
 | Entry count | Same as sample count (one delta per sample) |
 
 ---
@@ -193,22 +193,22 @@ Best for: floating-point series with small bit-level changes (Facebook Gorilla T
 
 | Property | Value |
 |----------|-------|
-| Lossless | Yes — bit-for-bit float recovery via `TSPackXorGorillaStrategy::unpack` |
+| Lossless | Yes - bit-for-bit float recovery via `TSPackXorGorillaStrategy::unpack` |
 | Note | `TimeSeriesDataPacker::unpack()` returns encoded XOR values, not originals |
 
 ---
 
 ### 6. Simple-8b (`TSPackSimple8bStrategy`)
 
-Best for: many small integer deltas — packs dozens of deltas into one 64-bit word.
+Best for: many small integer deltas - packs dozens of deltas into one 64-bit word.
 
 ```
-  Step 1 — scale floats to integers (scale = 1 / precision_epsilon):
+  Step 1 - scale floats to integers (scale = 1 / precision_epsilon):
 
   values:  100.0 ──► 100.5 ──► 101.0 ──► 102.25
   deltas:         +500        +500        +1250   (milli-units, zigzag-encoded)
 
-  Step 2 — batch integers into 64-bit Simple-8b words:
+  Step 2 - batch integers into 64-bit Simple-8b words:
 
   ┌──────────────────────────────────────────────────────────────┐
   │ mode │  int │ int │ int │ int │ int │ int │ …  (fits in 64b) │
@@ -217,7 +217,7 @@ Best for: many small integer deltas — packs dozens of deltas into one 64-bit w
          ▲
          └── mode selector (how many ints, how many bits each)
 
-  Step 3 — store in packed format:
+  Step 3 - store in packed format:
 
   ┌─────────────────┐   ┌──────────┐   ┌──────────┐
   │ ANCHOR          │   │ VALUE    │   │ TIME     │
@@ -238,7 +238,7 @@ Best for: many small integer deltas — packs dozens of deltas into one 64-bit w
 
 | Property | Value |
 |----------|-------|
-| Lossless | Approximate — within `precision_epsilon` after integer scaling |
+| Lossless | Approximate - within `precision_epsilon` after integer scaling |
 | Compression | High when deltas are small integers |
 | Recovery | `TSPackSimple8bStrategy::unpack` |
 
@@ -280,7 +280,7 @@ Best for: many small integer deltas — packs dozens of deltas into one 64-bit w
 #### `TSPackStrategyType`
 Available compression strategies (can be chained in `TSPackAttributes::strategy_types`).
 
-> New to the project? See the [Visual guide — strategies explained (ASCII)](#visual-guide--strategies-explained-ascii) section above for diagrams and a strategy picker.
+> New to the project? See the [Visual guide - strategies explained (ASCII)](#visual-guide--strategies-explained-ascii) section above for diagrams and a strategy picker.
 
 | Variant | Description |
 |---------|-------------|
